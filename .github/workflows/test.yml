@@ -10,6 +10,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
@@ -23,3 +25,45 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: gleam test
+      - name: Preserve tested frontend package
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-static-assets
+          path: dist/
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy_preview:
+    name: Deploy preview
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment:
+      name: preview
+      url: https://preview.projozangu.com
+    concurrency:
+      group: preview-deployment
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - name: Restore tested frontend package
+        uses: actions/download-artifact@v4
+        with:
+          name: preview-static-assets
+          path: dist/
+      - name: Apply preview D1 migrations
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: d1 migrations apply nominator-preview --remote --env preview
+      - name: Deploy preview Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --env preview

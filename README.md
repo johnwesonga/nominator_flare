@@ -200,6 +200,19 @@ Never load `d1/fixtures/test.sql` into production. Preview and production use
 different Workers, D1 databases, Queues, dead-letter Queues, hostnames, secrets,
 and Access applications.
 
+Pushes to `main` automatically deploy preview only after the complete GitHub
+Actions test job passes. The deployment job reuses the exact `dist/` artifact
+produced by that test job, applies pending migrations to `nominator-preview`,
+and deploys `env.preview`. Configure the GitHub `preview` environment with these
+encrypted secrets:
+
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_API_TOKEN`
+
+Scope the API token to the required account and preview deployment resources.
+Production remains a separate, explicitly approved manual deployment; the
+workflow does not modify production D1 or the production Worker.
+
 ## Migration documentation
 
 Each migration phase, its changes, and its verification checklist are recorded

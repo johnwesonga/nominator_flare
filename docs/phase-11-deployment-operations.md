@@ -1,6 +1,6 @@
 # Phase 11: Deployment and operations
 
-Status: **preview acceptance complete; production setup and deployment pending**
+Status: **production deployed; automatic preview deployment configured**
 
 The registered `projozangu.com` zone is split between two isolated Worker
 environments:
@@ -102,10 +102,12 @@ Production infrastructure configured on 2026-08-15:
   verification succeeded without retrieving either value.
 - [x] Confirmed there are no Supabase application records to import. Phase 9 is
   documented as a no-data migration; production fixtures were not loaded.
-- [ ] Deploy the production Worker only after the data migration and explicit
+- [x] Applied Phase 12 migration `0005_family_management_audit.sql` after
+  preview family-management acceptance.
+- [x] Deployed the production Worker after the no-data migration and explicit
   cutover approval.
-- [ ] Apply Phase 12 migration `0005_family_management_audit.sql` only after its
-  preview deployment and family-management acceptance pass.
+- [x] Verified production Access, family management, voting enforcement, Queue
+  consumption, Resend acceptance, and successful email delivery.
 
 ## Access application paths
 
@@ -149,7 +151,31 @@ Production deployment follows preview acceptance and an explicit approval:
 npx wrangler deploy --env production
 ```
 
-Neither deployment command has been run as part of this change.
+Manual deployment remains available for controlled recovery and production
+promotion.
+
+## Automatic preview deployment
+
+The GitHub Actions workflow now has a `deploy_preview` job with these gates:
+
+1. It runs only for a push to `main`, never for a pull request.
+2. It requires the complete `test` job to pass.
+3. The test job uploads its generated `dist/` directory as a one-day artifact.
+4. The deployment job downloads that exact tested artifact.
+5. It applies pending migrations to the explicitly named
+   `nominator-preview` D1 database.
+6. It deploys only the Wrangler `preview` environment.
+
+The job uses a GitHub environment named `preview`, which must contain encrypted
+`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` secrets. The API token must be
+scoped to the intended Cloudflare account and only the permissions required for
+Workers deployment, the custom route, D1 migration, and existing Queue
+bindings. Neither secret belongs in the repository.
+
+Preview deployments use a concurrency group with cancellation disabled. This
+prevents a newer push from interrupting a migration or deployment already in
+progress. Production is deliberately absent from the workflow and retains its
+explicit approval gate.
 
 ## Current checklist
 
@@ -168,11 +194,18 @@ Neither deployment command has been run as part of this change.
 - [x] Preview remote resources are isolated from the production environment.
 - [x] Preview Cloudflare resources and Access policy are configured.
 - [x] Preview deployment and Phase 10 browser acceptance pass.
-- [ ] Production resources are configured independently.
-- [ ] Production deployment is approved and completed.
+- [x] Production resources are configured independently.
+- [x] Production deployment is approved and completed.
+- [x] Preview deployment depends on successful GitHub Actions validation.
+- [x] Preview D1 migrations run before the automated Worker deployment.
+- [x] Automated deployment is restricted to pushes on `main` and cannot deploy
+  production.
+- [ ] Add `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` to the GitHub
+  `preview` environment and observe the first successful automated deployment.
 
 ## Exit gate
 
-The preview environment is provisioned, deployed, and accepted. Phase 11
-remains incomplete until production resources are independently configured and
-the production deployment is explicitly approved.
+Preview and production are provisioned, deployed, and accepted. The repository
+portion of automatic preview deployment is complete; its operational exit gate
+is the first successful `main` deployment using the GitHub `preview`
+environment credentials.
