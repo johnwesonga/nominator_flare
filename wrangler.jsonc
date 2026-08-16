@@ -1,0 +1,159 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "nominator-flare",
+  "main": "worker/src/index.ts",
+  "compatibility_date": "2026-08-14",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "preview_urls": false,
+  "secrets": {
+    "required": [
+      "RESEND_API_KEY"
+    ]
+  },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": [
+      "/api/*"
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "nominator-development",
+      "migrations_dir": "d1/migrations"
+    }
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "EMAIL_QUEUE",
+        "queue": "nominator-email-development"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "nominator-email-development",
+        "dead_letter_queue": "nominator-email-development-dlq",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 3
+      }
+    ]
+  },
+  "vars": {
+    "ACCESS_AUD": "replace-with-development-access-aud",
+    "ACCESS_TEAM_DOMAIN": "https://replace-me.cloudflareaccess.com",
+    "APPLICATION_ORIGIN": "http://localhost:8787",
+    "ENVIRONMENT": "development",
+    "NOTIFICATION_CAMPAIGN_KEY": "2026-most-inspirational",
+    "SENDER_EMAIL": "notifications@projozangu.com",
+    "SENDER_NAME": "Team Voting"
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "env": {
+    "preview": {
+      "name": "nominator-flare-preview",
+      "routes": [
+        {
+          "pattern": "preview.projozangu.com",
+          "custom_domain": true
+        }
+      ],
+      "secrets": {
+        "required": [
+          "RESEND_API_KEY"
+        ]
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "nominator-preview",
+          "database_id": "b39a1928-24b0-41f2-b0bd-90624a2d063d",
+          "migrations_dir": "d1/migrations"
+        }
+      ],
+      "queues": {
+        "producers": [
+          {
+            "binding": "EMAIL_QUEUE",
+            "queue": "nominator-email-preview"
+          }
+        ],
+        "consumers": [
+          {
+            "queue": "nominator-email-preview",
+            "dead_letter_queue": "nominator-email-preview-dlq",
+            "max_batch_size": 10,
+            "max_batch_timeout": 5,
+            "max_retries": 3
+          }
+        ]
+      },
+      "vars": {
+        "ACCESS_AUD": "0ff747c4bae54c5c31a6624a13b6e9e8c1a9b2c994cdc31c75b79baa5b21ed81",
+        "ACCESS_TEAM_DOMAIN": "https://nameless-sunset-3274.cloudflareaccess.com",
+        "APPLICATION_ORIGIN": "https://preview.projozangu.com",
+        "ENVIRONMENT": "preview",
+        "NOTIFICATION_CAMPAIGN_KEY": "2026-most-inspirational-preview-02",
+        "SENDER_EMAIL": "notifications@projozangu.com",
+        "SENDER_NAME": "Team Voting"
+      }
+    },
+    "production": {
+      "name": "nominator-flare-production",
+      "routes": [
+        {
+          "pattern": "nominator.projozangu.com",
+          "custom_domain": true
+        }
+      ],
+      "secrets": {
+        "required": [
+          "RESEND_API_KEY"
+        ]
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "nominator-production",
+          "database_id": "01b53f44-9351-41dd-9e8d-e3850fbe570f",
+          "migrations_dir": "d1/migrations"
+        }
+      ],
+      "queues": {
+        "producers": [
+          {
+            "binding": "EMAIL_QUEUE",
+            "queue": "nominator-email-production"
+          }
+        ],
+        "consumers": [
+          {
+            "queue": "nominator-email-production",
+            "dead_letter_queue": "nominator-email-production-dlq",
+            "max_batch_size": 10,
+            "max_batch_timeout": 5,
+            "max_retries": 3
+          }
+        ]
+      },
+      "vars": {
+        "ACCESS_AUD": "df5dd25e68d2466b1eecaabd0a1996e3bea2d207e4af698f0b7f806e4b7f1fc5",
+        "ACCESS_TEAM_DOMAIN": "https://nameless-sunset-3274.cloudflareaccess.com",
+        "APPLICATION_ORIGIN": "https://nominator.projozangu.com",
+        "ENVIRONMENT": "production",
+        "NOTIFICATION_CAMPAIGN_KEY": "2026-most-inspirational-02",
+        "SENDER_EMAIL": "notifications@projozangu.com",
+        "SENDER_NAME": "Team Voting"
+      }
+    }
+  }
+}

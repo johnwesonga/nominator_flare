@@ -1,0 +1,31 @@
+{
+  "name": "nominator-flare-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:frontend": "gleam run -m lustre/dev -- build && cp assets/styles.css dist/styles.css && node scripts/package-frontend.mjs",
+    "check": "gleam format --check src test && gleam test && npm run build:frontend && npm run test:static && npm run types:check && npm run typecheck && npm run test:d1 && npm run test:migration && npm test && npm run deploy:dry-run",
+    "db:migrate:local": "WRANGLER_WRITE_LOGS=false wrangler d1 migrations apply nominator-development --local --env=",
+    "deploy:dry-run": "WRANGLER_WRITE_LOGS=false wrangler deploy --dry-run --env= --secrets-file .dev.vars.example --outdir .wrangler/dry-run",
+    "dev": "WRANGLER_WRITE_LOGS=false wrangler dev",
+    "test": "vitest run",
+    "test:d1": "node scripts/test-d1.mjs",
+    "test:migration": "node scripts/test-data-migration.mjs",
+    "test:static": "node scripts/test-static-assets.mjs",
+    "migration:transform": "node scripts/transform-supabase-export.mjs",
+    "migration:validate": "node scripts/validate-migration.mjs",
+    "typecheck": "tsc --noEmit",
+    "types": "WRANGLER_WRITE_LOGS=false wrangler types",
+    "types:check": "WRANGLER_WRITE_LOGS=false wrangler types --check"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.21.3",
+    "@types/node": "^26.2.0",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.123.0"
+  },
+  "dependencies": {
+    "jose": "^6.2.8"
+  }
+}
