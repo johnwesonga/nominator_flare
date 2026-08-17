@@ -166,7 +166,7 @@ The GitHub Actions workflow now has a `deploy_preview` job with these gates:
    `nominator-preview` D1 database.
 6. It deploys only the Wrangler `preview` environment.
 
-The job uses a GitHub environment named `preview`, which must contain encrypted
+The job uses a GitHub environment named `preview`, which contains encrypted
 `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` secrets. The API token must be
 scoped to the intended Cloudflare account and only the permissions required for
 Workers deployment, the custom route, D1 migration, and existing Queue
@@ -174,8 +174,45 @@ bindings. Neither secret belongs in the repository.
 
 Preview deployments use a concurrency group with cancellation disabled. This
 prevents a newer push from interrupting a migration or deployment already in
-progress. Production is deliberately absent from the workflow and retains its
-explicit approval gate.
+progress. The first automatic preview migration and deployment completed
+successfully.
+
+## Manually approved production deployment
+
+`.github/workflows/deploy-production.yml` defines a separate production release
+path. It has no push or pull-request trigger and can run only through
+`workflow_dispatch`.
+
+The validation job:
+
+1. rejects any ref other than `main`;
+2. requires the operator to type the exact confirmation `DEPLOY`;
+3. checks out the selected `main` commit;
+4. runs the complete `npm run check` release gate; and
+5. uploads the generated `dist/` package as a one-day artifact.
+
+Only after validation succeeds does the deployment job enter the protected
+GitHub environment named `production`. GitHub must be configured with at least
+one required reviewer. Prevent self-review when that protection is available so
+the person starting a release cannot also approve it.
+
+After approval, the job restores the exact tested frontend artifact, applies
+pending migrations to the explicitly named `nominator-production` D1 database,
+and deploys only Wrangler `env.production`. A production concurrency group has
+cancellation disabled so another release cannot interrupt an in-flight
+migration or deployment.
+
+The `production` environment must contain its own encrypted
+`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` secrets. The token requires
+the same narrow Workers, D1, Queue, and route permissions as preview, scoped to
+the intended Cloudflare account and zone. Secrets are not copied from preview
+automatically.
+
+D1 migration and Worker deployment are sequential, not one atomic operation.
+If migration succeeds but deployment fails, do not reverse the migration
+blindly. Keep the current compatible Worker active, diagnose the deployment,
+and either redeploy the tested commit or follow the migration-specific recovery
+plan. Wrangler captures a D1 backup when applying remote migrations.
 
 ## Current checklist
 
@@ -200,12 +237,19 @@ explicit approval gate.
 - [x] Preview D1 migrations run before the automated Worker deployment.
 - [x] Automated deployment is restricted to pushes on `main` and cannot deploy
   production.
-- [ ] Add `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` to the GitHub
-  `preview` environment and observe the first successful automated deployment.
+- [x] Added GitHub `preview` environment credentials and observed the first
+  successful automatic migration and deployment.
+- [x] Manual production workflow validates only `main` and requires `DEPLOY`.
+- [x] Production deployment waits on the protected GitHub environment after
+  validation succeeds.
+- [x] Production migrations target `nominator-production` before deploying only
+  `env.production`.
+- [ ] Configure production environment secrets and required reviewers.
+- [ ] Observe the first successful manually approved production deployment.
 
 ## Exit gate
 
-Preview and production are provisioned, deployed, and accepted. The repository
-portion of automatic preview deployment is complete; its operational exit gate
-is the first successful `main` deployment using the GitHub `preview`
-environment credentials.
+Preview and production are provisioned, deployed, and accepted. Automatic
+preview deployment is operational. The manually approved production workflow
+is complete in the repository; its operational exit gate is configured GitHub
+environment protection and the first successful approved release.

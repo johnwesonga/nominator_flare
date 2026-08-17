@@ -1,0 +1,71 @@
+name: deploy production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type DEPLOY to confirm a production release from main
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate production release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require main and explicit confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$CONFIRMATION" = "DEPLOY"
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "28"
+          gleam-version: "1.14.0"
+          rebar3-version: "3"
+      - run: gleam deps download
+      - run: npm ci
+      - run: npm run check
+      - name: Preserve tested production package
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-static-assets
+          path: dist/
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy:
+    name: Approve and deploy production
+    needs: validate
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://nominator.projozangu.com
+    concurrency:
+      group: production-deployment
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - name: Restore tested production package
+        uses: actions/download-artifact@v4
+        with:
+          name: production-static-assets
+          path: dist/
+      - name: Apply production D1 migrations
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: d1 migrations apply nominator-production --remote --env production
+      - name: Deploy production Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --env production

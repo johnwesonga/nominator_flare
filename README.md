@@ -210,8 +210,17 @@ encrypted secrets:
 - `CLOUDFLARE_API_TOKEN`
 
 Scope the API token to the required account and preview deployment resources.
-Production remains a separate, explicitly approved manual deployment; the
-workflow does not modify production D1 or the production Worker.
+The separate `deploy production` workflow is started manually from GitHub
+Actions. It accepts only `main`, requires the operator to enter `DEPLOY`, reruns
+the complete release gate, and then pauses at the protected GitHub `production`
+environment for reviewer approval. After approval it applies pending migrations
+to `nominator-production` and deploys only `env.production`, using the exact
+frontend artifact produced by its validation job.
+
+Configure the `production` GitHub environment with its own
+`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` secrets. Add at least one
+required reviewer and, when the repository plan supports it, prevent the person
+who started the workflow from approving their own deployment.
 
 ## Migration documentation
 
