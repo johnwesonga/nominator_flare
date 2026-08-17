@@ -202,7 +202,7 @@ and deploys only Wrangler `env.production`. A production concurrency group has
 cancellation disabled so another release cannot interrupt an in-flight
 migration or deployment.
 
-The `production` environment must contain its own encrypted
+The `production` environment contains its own encrypted
 `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` secrets. The token requires
 the same narrow Workers, D1, Queue, and route permissions as preview, scoped to
 the intended Cloudflare account and zone. Secrets are not copied from preview
@@ -244,12 +244,12 @@ plan. Wrangler captures a D1 backup when applying remote migrations.
   validation succeeds.
 - [x] Production migrations target `nominator-production` before deploying only
   `env.production`.
-- [ ] Configure production environment secrets and required reviewers.
-- [ ] Observe the first successful manually approved production deployment.
+- [x] Configured production environment secrets and deployment approval.
+- [x] Observed the first successful manually approved production deployment on
+  2026-08-16.
 
 ## Exit gate
 
 Preview and production are provisioned, deployed, and accepted. Automatic
-preview deployment is operational. The manually approved production workflow
-is complete in the repository; its operational exit gate is configured GitHub
-environment protection and the first successful approved release.
+preview deployment and manually approved production deployment are both
+operational. Phase 11 is complete.
