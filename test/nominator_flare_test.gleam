@@ -6,6 +6,7 @@ import gleam/json
 import gleam/list
 import gleam/option
 import gleeunit
+import lustre/dev/query
 import rsvp
 import types
 
@@ -345,14 +346,48 @@ pub fn family_list_state_survives_family_reload_test() {
     )
 
   let #(updated, _effect) =
-    admin.update(state, admin.GotFamilies(Ok(family_fixtures(1))))
+    admin.update(state, admin.GotFamilies(Ok(family_fixtures(4))))
 
   let assert admin.LoggedIn(
-    families: [types.AdminFamily(id: "family-1", ..)],
+    families: [
+      types.AdminFamily(id: "family-1", ..),
+      types.AdminFamily(id: "family-2", ..),
+      types.AdminFamily(id: "family-3", ..),
+      types.AdminFamily(id: "family-4", ..),
+    ],
     family_list: updated_family_list,
     ..,
   ) = updated
   assert updated_family_list == family_list
+}
+
+pub fn family_reload_collapses_a_missing_expanded_family_test() {
+  let state =
+    admin.LoggedIn(
+      email: "manager@example.com",
+      roster: [],
+      results: [],
+      families: family_fixtures(2),
+      management: admin.ManagementForm(admin.ManagementIdle, "", "", ""),
+      family_list: admin.FamilyListState(
+        "",
+        admin.AllFamilies,
+        1,
+        20,
+        option.Some("family-2"),
+      ),
+      notice: option.None,
+      filter_text: "",
+      busy: True,
+    )
+
+  let #(updated, _) =
+    admin.update(state, admin.GotFamilies(Ok([family_fixture(1)])))
+
+  let assert admin.LoggedIn(
+    family_list: admin.FamilyListState(expanded_family_id: option.None, ..),
+    ..,
+  ) = updated
 }
 
 pub fn family_list_state_survives_management_action_test() {
@@ -421,6 +456,99 @@ pub fn scalable_family_fixtures_cover_voting_states_test() {
     _,
     [types.AdminSwimmer(_, _, _, _, True)],
   ) = fourth
+}
+
+pub fn family_disclosure_allows_only_one_expanded_family_test() {
+  let state =
+    admin.LoggedIn(
+      email: "manager@example.com",
+      roster: [],
+      results: [],
+      families: family_fixtures(2),
+      management: admin.ManagementForm(admin.ManagementIdle, "", "", ""),
+      family_list: default_family_list(),
+      notice: option.None,
+      filter_text: "",
+      busy: False,
+    )
+
+  let #(first_expanded, _) = admin.update(state, admin.ToggleFamily("family-1"))
+  let assert admin.LoggedIn(
+    family_list: admin.FamilyListState(
+      expanded_family_id: option.Some("family-1"),
+      ..,
+    ),
+    ..,
+  ) = first_expanded
+
+  let #(second_expanded, _) =
+    admin.update(first_expanded, admin.ToggleFamily("family-2"))
+  let assert admin.LoggedIn(
+    family_list: admin.FamilyListState(
+      expanded_family_id: option.Some("family-2"),
+      ..,
+    ),
+    ..,
+  ) = second_expanded
+
+  let #(all_collapsed, _) =
+    admin.update(second_expanded, admin.ToggleFamily("family-2"))
+  let assert admin.LoggedIn(
+    family_list: admin.FamilyListState(expanded_family_id: option.None, ..),
+    ..,
+  ) = all_collapsed
+}
+
+pub fn collapsed_family_hides_private_details_test() {
+  let view =
+    admin.LoggedIn(
+      email: "manager@example.com",
+      roster: [],
+      results: [],
+      families: [family_fixture(2)],
+      management: admin.ManagementForm(admin.ManagementIdle, "", "", ""),
+      family_list: default_family_list(),
+      notice: option.None,
+      filter_text: "",
+      busy: False,
+    )
+    |> admin.view
+
+  assert query.has(view, query.text("family-2@example.com"))
+  assert query.has(view, query.attribute("aria-expanded", "false"))
+  assert !query.has(view, query.attribute("value", "/vote/token-2"))
+  assert !query.has(view, query.text("Swimmer 2-1"))
+}
+
+pub fn expanded_family_renders_accessible_details_test() {
+  let view =
+    admin.LoggedIn(
+      email: "manager@example.com",
+      roster: [],
+      results: [],
+      families: [family_fixture(2)],
+      management: admin.ManagementForm(admin.ManagementIdle, "", "", ""),
+      family_list: admin.FamilyListState(
+        "",
+        admin.AllFamilies,
+        1,
+        20,
+        option.Some("family-2"),
+      ),
+      notice: option.None,
+      filter_text: "",
+      busy: False,
+    )
+    |> admin.view
+
+  assert query.has(view, query.attribute("aria-expanded", "true"))
+  assert query.has(
+    view,
+    query.attribute("aria-controls", "family-details-family-2"),
+  )
+  assert query.has(view, query.id("family-details-family-2"))
+  assert query.has(view, query.attribute("value", "/vote/token-2"))
+  assert query.has(view, query.text("Swimmer 2-1"))
 }
 
 pub fn add_family_opens_management_editor_test() {

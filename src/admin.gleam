@@ -103,6 +103,7 @@ pub type Msg {
   AskDeleteSwimmer(AdminSwimmer)
   CopyFamilyLink(String)
   FamilyLinkCopied(Bool)
+  ToggleFamily(String)
 }
 
 pub fn init(active: Bool) -> #(State, effect.Effect(Msg)) {
@@ -309,6 +310,7 @@ pub fn update(state: State, msg: Msg) -> #(State, effect.Effect(Msg)) {
         True -> "Voting link copied."
         False -> "The voting link could not be copied."
       })
+    ToggleFamily(family_id) -> toggle_family(state, family_id)
   }
 }
 
@@ -318,6 +320,67 @@ fn new_management() -> ManagementForm {
 
 fn new_family_list_state() -> FamilyListState {
   FamilyListState("", AllFamilies, 1, 20, None)
+}
+
+fn toggle_family(
+  state: State,
+  family_id: String,
+) -> #(State, effect.Effect(Msg)) {
+  case state {
+    LoggedIn(
+      email,
+      roster,
+      results,
+      families,
+      management,
+      FamilyListState(query, filter, page, page_size, expanded_family_id),
+      notice,
+      filter_text,
+      busy,
+    ) -> {
+      let next_expanded_family_id = case expanded_family_id {
+        Some(expanded_id) if expanded_id == family_id -> None
+        _ -> Some(family_id)
+      }
+      #(
+        LoggedIn(
+          email:,
+          roster:,
+          results:,
+          families:,
+          management:,
+          family_list: FamilyListState(
+            query:,
+            filter:,
+            page:,
+            page_size:,
+            expanded_family_id: next_expanded_family_id,
+          ),
+          notice:,
+          filter_text:,
+          busy:,
+        ),
+        effect.none(),
+      )
+    }
+    _ -> #(state, effect.none())
+  }
+}
+
+fn reconcile_family_list(
+  family_list: FamilyListState,
+  families: List(AdminFamily),
+) -> FamilyListState {
+  let FamilyListState(expanded_family_id: expanded_family_id, ..) = family_list
+  let valid_expanded_family_id = case expanded_family_id {
+    Some(expanded_id) ->
+      case list.any(families, fn(family) { family.id == expanded_id }) {
+        True -> expanded_family_id
+        False -> None
+      }
+    None -> None
+  }
+  FamilyListState(..family_list, expanded_family_id: valid_expanded_family_id)
 }
 
 fn set_management(
@@ -743,7 +806,7 @@ fn got_families(
             results:,
             families:,
             management:,
-            family_list:,
+            family_list: reconcile_family_list(family_list, families),
             notice:,
             filter_text:,
             busy: False,
@@ -894,7 +957,7 @@ pub fn view(state: State) -> element.Element(Msg) {
         results,
         families,
         management,
-        _,
+        family_list,
         notice,
         filter_text,
         busy,
@@ -905,6 +968,7 @@ pub fn view(state: State) -> element.Element(Msg) {
           results,
           families,
           management,
+          family_list,
           notice,
           filter_text,
           busy,
@@ -934,6 +998,7 @@ fn view_dashboard(
   results: List(ResultRow),
   families: List(AdminFamily),
   management: ManagementForm,
+  family_list: FamilyListState,
   notice: option.Option(String),
   filter_text: String,
   busy: Bool,
@@ -1008,7 +1073,7 @@ fn view_dashboard(
       None -> html.text("")
     },
     view_results(results),
-    view_family_management(families, management, busy),
+    view_family_management(families, management, family_list, busy),
     html.section([attribute.class("panel")], [
       html.h3([], [html.text("Roster")]),
       html.input([
@@ -1091,8 +1156,10 @@ fn view_results(results: List(ResultRow)) {
 fn view_family_management(
   families: List(AdminFamily),
   management: ManagementForm,
+  family_list: FamilyListState,
   busy: Bool,
 ) {
+  let FamilyListState(expanded_family_id: expanded_family_id, ..) = family_list
   html.section([attribute.class("panel family-management")], [
     html.div([attribute.class("family-management-head")], [
       html.div([], [
@@ -1119,7 +1186,9 @@ fn view_family_management(
       _ ->
         html.div(
           [attribute.class("family-list")],
-          list.map(families, fn(family) { view_family(family, busy) }),
+          list.map(families, fn(family) {
+            view_family(family, expanded_family_id == Some(family.id), busy)
+          }),
         )
     },
   ])
@@ -1221,75 +1290,105 @@ fn view_management_form(form: ManagementForm, busy: Bool) {
   }
 }
 
-fn view_family(family: AdminFamily, busy: Bool) {
+fn view_family(family: AdminFamily, expanded: Bool, busy: Bool) {
   let AdminFamily(..) = family
+  let detail_id = "family-details-" <> family.id
   html.article([attribute.class("family-card")], [
-    html.div([attribute.class("family-card-head")], [
-      html.div([], [
-        html.h4([], [html.text(family.email)]),
-        html.span([attribute.class("sub")], [
-          html.text(int.to_string(list.length(family.swimmers)) <> " swimmers"),
+    html.button(
+      [
+        attribute.class("family-disclosure"),
+        attribute.type_("button"),
+        attribute.aria_expanded(expanded),
+        attribute.aria_controls(detail_id),
+        event.on_click(ToggleFamily(family.id)),
+      ],
+      [
+        html.span([attribute.class("family-disclosure-icon")], [
+          html.text(case expanded {
+            True -> "−"
+            False -> "+"
+          }),
         ]),
-      ]),
-      html.div([attribute.class("family-actions")], [
-        html.button(
+        html.span([attribute.class("family-disclosure-label")], [
+          html.b([], [html.text(family.email)]),
+          html.span([attribute.class("sub")], [
+            html.text(
+              int.to_string(list.length(family.swimmers)) <> " swimmers",
+            ),
+          ]),
+        ]),
+      ],
+    ),
+    case expanded {
+      False -> html.text("")
+      True ->
+        html.div(
           [
-            attribute.class("btn btn-ghost btn-small"),
-            attribute.disabled(busy),
-            event.on_click(StartEditFamily(family)),
+            attribute.id(detail_id),
+            attribute.class("family-details"),
           ],
-          [html.text("Edit")],
-        ),
-        html.button(
           [
-            attribute.class("btn btn-ghost btn-small"),
-            attribute.disabled(busy || !list.is_empty(family.swimmers)),
-            attribute.title(case family.swimmers {
-              [] -> "Delete this empty family"
-              _ -> "Remove every swimmer before deleting this family"
-            }),
-            event.on_click(AskDeleteFamily(family)),
+            html.div([attribute.class("family-actions")], [
+              html.button(
+                [
+                  attribute.class("btn btn-ghost btn-small"),
+                  attribute.disabled(busy),
+                  event.on_click(StartEditFamily(family)),
+                ],
+                [html.text("Edit family")],
+              ),
+              html.button(
+                [
+                  attribute.class("btn btn-ghost btn-small"),
+                  attribute.disabled(busy || !list.is_empty(family.swimmers)),
+                  attribute.title(case family.swimmers {
+                    [] -> "Delete this empty family"
+                    _ -> "Remove every swimmer before deleting this family"
+                  }),
+                  event.on_click(AskDeleteFamily(family)),
+                ],
+                [html.text("Delete family")],
+              ),
+            ]),
+            html.div([attribute.class("family-link")], [
+              html.input([
+                attribute.type_("text"),
+                attribute.readonly(True),
+                attribute.value("/vote/" <> family.family_token),
+                attribute.aria_label("Private family voting path"),
+              ]),
+              html.button(
+                [
+                  attribute.class("btn btn-ghost btn-small"),
+                  attribute.disabled(busy),
+                  event.on_click(CopyFamilyLink(family.family_token)),
+                ],
+                [html.text("Copy link")],
+              ),
+            ]),
+            html.div([attribute.class("family-swimmers")], [
+              case family.swimmers {
+                [] -> html.p([], [html.text("No swimmers in this family.")])
+                swimmers ->
+                  html.ul(
+                    [],
+                    list.map(swimmers, fn(swimmer) {
+                      view_managed_swimmer(swimmer, busy)
+                    }),
+                  )
+              },
+              html.button(
+                [
+                  attribute.class("btn btn-ghost btn-small"),
+                  attribute.disabled(busy),
+                  event.on_click(StartNewSwimmer(family.id)),
+                ],
+                [html.text("Add swimmer")],
+              ),
+            ]),
           ],
-          [html.text("Delete")],
-        ),
-      ]),
-    ]),
-    html.div([attribute.class("family-link")], [
-      html.input([
-        attribute.type_("text"),
-        attribute.readonly(True),
-        attribute.value("/vote/" <> family.family_token),
-        attribute.aria_label("Private family voting path"),
-      ]),
-      html.button(
-        [
-          attribute.class("btn btn-ghost btn-small"),
-          attribute.disabled(busy),
-          event.on_click(CopyFamilyLink(family.family_token)),
-        ],
-        [html.text("Copy link")],
-      ),
-    ]),
-    html.div([attribute.class("family-swimmers")], [
-      case family.swimmers {
-        [] -> html.p([], [html.text("No swimmers in this family.")])
-        swimmers ->
-          html.ul(
-            [],
-            list.map(swimmers, fn(swimmer) {
-              view_managed_swimmer(swimmer, busy)
-            }),
-          )
-      },
-      html.button(
-        [
-          attribute.class("btn btn-ghost btn-small"),
-          attribute.disabled(busy),
-          event.on_click(StartNewSwimmer(family.id)),
-        ],
-        [html.text("Add swimmer")],
-      ),
-    ]),
+        )
+    },
   ])
 }
 

@@ -1,6 +1,6 @@
 # Phase 13: Scalable family-management UI plan
 
-Status: **13A.2 implemented; manual acceptance pending**
+Status: **13A.3 implemented; manual acceptance pending**
 
 Phase 12 is safe and functional, but its presentation is optimized for a small
 dataset. It renders every family as an expanded card, including every swimmer
@@ -329,7 +329,8 @@ Checkpoint status:
 - [x] Complete release gate passes: 27 Gleam tests, 54 Worker tests, frontend
   packaging, generated types, TypeScript, D1 and migration validation, and the
   deployment dry run.
-- [ ] Manual browser acceptance confirms there is no visible regression.
+- [x] Manual browser acceptance confirmed on 2026-08-17 that the interface and
+  existing family-management functionality have no visible regression.
 
 #### 13A.3: collapsed family disclosures
 
@@ -351,6 +352,25 @@ Focused checks:
 - selecting a second family collapses the first;
 - selecting an expanded family collapses it; and
 - keyboard and touch activation work.
+
+Checkpoint status:
+
+- [x] Family rows are collapsed by default and expose a native button control.
+- [x] At most one family can be expanded at a time.
+- [x] Expanding the open family again collapses it.
+- [x] Private voting links, swimmers, and mutation actions render only within
+  the expanded detail region.
+- [x] Disclosure buttons expose `aria-expanded` and `aria-controls`, with a
+  matching detail-region ID.
+- [x] Expansion survives authoritative reloads while the family still exists
+  and is cleared if that family was deleted.
+- [x] Desktop and narrow-screen disclosure styles added.
+- [x] Focused state and view tests pass as part of 31 Gleam tests.
+- [x] Complete release gate passes: 31 Gleam tests, 54 Worker tests, frontend
+  packaging, generated types, TypeScript, D1 and migration validation, and the
+  deployment dry run.
+- [ ] Manual browser acceptance confirms keyboard and touch operation, the
+  one-expanded-family rule, and existing management actions.
 
 #### 13A.4: family search
 

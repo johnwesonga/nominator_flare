@@ -518,7 +518,61 @@
   .family-card {
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 16px;
+      overflow: hidden;
+  }
+
+  .family-disclosure {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border: 0;
+      background: transparent;
+      color: var(--ink);
+      cursor: pointer;
+      font: inherit;
+      text-align: left;
+  }
+
+  .family-disclosure:hover {
+      background: var(--surface);
+  }
+
+  .family-disclosure:focus-visible {
+      outline: 3px solid var(--pool-light);
+      outline-offset: -3px;
+  }
+
+  .family-disclosure-icon {
+      width: 24px;
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--surface);
+      color: var(--pool-deep);
+      font-weight: 700;
+  }
+
+  .family-disclosure-label {
+      min-width: 0;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      flex: 1;
+  }
+
+  .family-disclosure-label b {
+      overflow-wrap: anywhere;
+  }
+
+  .family-details {
+      padding: 14px 16px 16px;
+      border-top: 1px solid var(--border);
   }
 
   .family-link {
@@ -778,6 +832,12 @@
 
       .family-actions {
           flex-wrap: wrap;
+      }
+
+      .family-disclosure-label {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 3px;
       }
 
       table.roster {
