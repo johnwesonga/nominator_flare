@@ -20,6 +20,7 @@ import types.{
 }
 
 pub type ManagementMode {
+  ManagementIdle
   NewFamily
   EditFamily(String)
   NewSwimmer(String)
@@ -276,7 +277,7 @@ pub fn update(state: State, msg: Msg) -> #(State, effect.Effect(Msg)) {
 }
 
 fn new_management() -> ManagementForm {
-  ManagementForm(NewFamily, "", "", "")
+  ManagementForm(ManagementIdle, "", "", "")
 }
 
 fn set_management(
@@ -334,6 +335,10 @@ fn update_management(
 
 fn submit_management(state: State) -> #(State, effect.Effect(Msg)) {
   case state {
+    LoggedIn(management: ManagementForm(mode: ManagementIdle, ..), ..) -> #(
+      state,
+      effect.none(),
+    )
     LoggedIn(email, roster, results, families, management, _, filter_text, _) -> {
       let ManagementForm(mode, family_email, swimmer_name, group_name) =
         management
@@ -342,6 +347,7 @@ fn submit_management(state: State) -> #(State, effect.Effect(Msg)) {
         value -> Some(value)
       }
       let action = case mode {
+        ManagementIdle -> effect.none()
         NewFamily -> api.create_family(family_email, ManagementFinished)
         EditFamily(id) ->
           api.update_family(id, family_email, ManagementFinished)
@@ -957,91 +963,98 @@ fn view_family_management(
 
 fn view_management_form(form: ManagementForm, busy: Bool) {
   let ManagementForm(mode, email, swimmer_name, group_name) = form
-  let title = case mode {
-    NewFamily -> "Add family"
-    EditFamily(_) -> "Edit family"
-    NewSwimmer(_) -> "Add swimmer"
-    EditSwimmer(_) -> "Edit swimmer"
-    ConfirmDeleteFamily(_, _) -> "Confirm family deletion"
-    ConfirmDeleteSwimmer(_, _) -> "Confirm swimmer deletion"
+  case mode {
+    ManagementIdle -> html.text("")
+    _ -> {
+      let title = case mode {
+        ManagementIdle -> ""
+        NewFamily -> "Add family"
+        EditFamily(_) -> "Edit family"
+        NewSwimmer(_) -> "Add swimmer"
+        EditSwimmer(_) -> "Edit swimmer"
+        ConfirmDeleteFamily(_, _) -> "Confirm family deletion"
+        ConfirmDeleteSwimmer(_, _) -> "Confirm swimmer deletion"
+      }
+      html.div([attribute.class("management-form")], [
+        html.h4([], [html.text(title)]),
+        case mode {
+          ManagementIdle -> html.text("")
+          NewFamily | EditFamily(_) ->
+            html.label([], [
+              html.text("Parent or family email"),
+              html.input([
+                attribute.type_("email"),
+                attribute.value(email),
+                attribute.autocomplete("email"),
+                attribute.disabled(busy),
+                event.on_input(ManagementEmailInput),
+              ]),
+            ])
+          NewSwimmer(_) | EditSwimmer(_) ->
+            html.div([attribute.class("management-fields")], [
+              html.label([], [
+                html.text("Swimmer name"),
+                html.input([
+                  attribute.type_("text"),
+                  attribute.value(swimmer_name),
+                  attribute.disabled(busy),
+                  event.on_input(ManagementNameInput),
+                ]),
+              ]),
+              html.label([], [
+                html.text("Group (optional)"),
+                html.input([
+                  attribute.type_("text"),
+                  attribute.value(group_name),
+                  attribute.disabled(busy),
+                  event.on_input(ManagementGroupInput),
+                ]),
+              ]),
+            ])
+          ConfirmDeleteFamily(_, family_email) ->
+            html.p([], [
+              html.text(
+                "Delete "
+                <> family_email
+                <> "? This is allowed only after every swimmer is removed.",
+              ),
+            ])
+          ConfirmDeleteSwimmer(_, name) ->
+            html.p([], [
+              html.text(
+                "Delete "
+                <> name
+                <> "? A swimmer referenced by any vote cannot be removed.",
+              ),
+            ])
+        },
+        html.div([attribute.class("management-actions")], [
+          html.button(
+            [
+              attribute.class("btn btn-primary"),
+              attribute.disabled(busy),
+              event.on_click(SubmitManagement),
+            ],
+            [
+              html.text(case mode {
+                ConfirmDeleteFamily(_, _) | ConfirmDeleteSwimmer(_, _) ->
+                  "Confirm delete"
+                _ -> "Save"
+              }),
+            ],
+          ),
+          html.button(
+            [
+              attribute.class("btn btn-ghost"),
+              attribute.disabled(busy),
+              event.on_click(CancelManagement),
+            ],
+            [html.text("Cancel")],
+          ),
+        ]),
+      ])
+    }
   }
-  html.div([attribute.class("management-form")], [
-    html.h4([], [html.text(title)]),
-    case mode {
-      NewFamily | EditFamily(_) ->
-        html.label([], [
-          html.text("Parent or family email"),
-          html.input([
-            attribute.type_("email"),
-            attribute.value(email),
-            attribute.autocomplete("email"),
-            attribute.disabled(busy),
-            event.on_input(ManagementEmailInput),
-          ]),
-        ])
-      NewSwimmer(_) | EditSwimmer(_) ->
-        html.div([attribute.class("management-fields")], [
-          html.label([], [
-            html.text("Swimmer name"),
-            html.input([
-              attribute.type_("text"),
-              attribute.value(swimmer_name),
-              attribute.disabled(busy),
-              event.on_input(ManagementNameInput),
-            ]),
-          ]),
-          html.label([], [
-            html.text("Group (optional)"),
-            html.input([
-              attribute.type_("text"),
-              attribute.value(group_name),
-              attribute.disabled(busy),
-              event.on_input(ManagementGroupInput),
-            ]),
-          ]),
-        ])
-      ConfirmDeleteFamily(_, family_email) ->
-        html.p([], [
-          html.text(
-            "Delete "
-            <> family_email
-            <> "? This is allowed only after every swimmer is removed.",
-          ),
-        ])
-      ConfirmDeleteSwimmer(_, name) ->
-        html.p([], [
-          html.text(
-            "Delete "
-            <> name
-            <> "? A swimmer referenced by any vote cannot be removed.",
-          ),
-        ])
-    },
-    html.div([attribute.class("management-actions")], [
-      html.button(
-        [
-          attribute.class("btn btn-primary"),
-          attribute.disabled(busy),
-          event.on_click(SubmitManagement),
-        ],
-        [
-          html.text(case mode {
-            ConfirmDeleteFamily(_, _) | ConfirmDeleteSwimmer(_, _) ->
-              "Confirm delete"
-            _ -> "Save"
-          }),
-        ],
-      ),
-      html.button(
-        [
-          attribute.class("btn btn-ghost"),
-          attribute.disabled(busy),
-          event.on_click(CancelManagement),
-        ],
-        [html.text("Cancel")],
-      ),
-    ]),
-  ])
 }
 
 fn view_family(family: AdminFamily, busy: Bool) {

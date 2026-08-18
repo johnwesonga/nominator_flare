@@ -1,6 +1,6 @@
 # Phase 13: Scalable family-management UI plan
 
-Status: **planned; implementation not started**
+Status: **13A.1 implemented; acceptance pending**
 
 Phase 12 is safe and functional, but its presentation is optimized for a small
 dataset. It renders every family as an expanded card, including every swimmer
@@ -251,16 +251,188 @@ authorization, no-store, and token non-disclosure tests.
 
 ## Delivery sequence
 
-### Phase 13A: client-side list redesign
+### Phase 13A: small implementation checkpoints
 
-1. Add large fixture generators for frontend tests and manual preview testing.
-2. Add query, filter, pagination, expansion, and idle-editor state.
-3. Implement pure list derivation functions and tests.
-4. Replace expanded cards with responsive compact disclosures.
-5. Hide the management form until an action is selected.
-6. Preserve context and focus across reloads and mutations.
-7. Run the complete release gate.
-8. Deploy to preview and complete browser acceptance with 40+ families.
+Each checkpoint must leave the application usable, pass its focused tests and
+the complete release gate, and be reviewed before work starts on the next
+checkpoint. A checkpoint should normally be one commit.
+
+#### 13A.1: idle management editor
+
+Goal: remove the always-visible empty `Add family` form without changing the
+family list.
+
+Changes:
+
+- Add an idle variant to the management state.
+- Initialize and reset management to idle.
+- Render no editor while idle.
+- Keep `Add family`, edit, add-swimmer, and delete actions opening their existing
+  forms.
+- Make Cancel return to idle.
+
+Focused checks:
+
+- the dashboard initially contains no management editor;
+- every management action opens the correct existing form;
+- Cancel closes it; and
+- successful mutations return to idle while failed mutations keep their form.
+
+This is the safest first increment because it shortens the page immediately and
+does not alter API requests, family ordering, or list navigation.
+
+Checkpoint status:
+
+- [x] Idle management variant added.
+- [x] Dashboard initialization and successful mutations reset to idle.
+- [x] The editor is omitted from the view while idle.
+- [x] Existing Add, Edit, Add swimmer, and Delete actions still open forms.
+- [x] Cancel returns to idle and failures preserve the active form.
+- [x] Focused state tests added.
+- [x] Complete release gate passes: 22 Gleam tests, 54 Worker tests, frontend
+  packaging, generated types, D1 and migration validation, and deployment dry
+  run.
+- [ ] Manual browser acceptance confirms the editor is initially hidden and
+  opens and closes through every action.
+
+#### 13A.2: family-list state and test fixtures
+
+Goal: introduce navigation state without changing which families are displayed.
+
+Changes:
+
+- Add a dedicated family-list state containing query, filter, page, page size,
+  and expanded family ID.
+- Initialize it with an empty query, `All`, page 1, page size 20, and no expanded
+  family.
+- Add deterministic test factories for 0, 1, 40, and 100 families.
+- Keep rendering the existing cards during this checkpoint.
+
+Focused checks:
+
+- default state is deterministic;
+- refresh and unrelated admin actions preserve list state; and
+- fixture families contain empty, partial-vote, and complete-vote cases.
+
+#### 13A.3: collapsed family disclosures
+
+Goal: bound the vertical size of each family while preserving all management
+features.
+
+Changes:
+
+- Replace the permanently expanded card body with a native button disclosure.
+- Keep all families collapsed initially.
+- Expand at most one family at a time.
+- Place the private voting link, swimmers, and mutation actions inside the
+  expanded region.
+- Add `aria-expanded` and an associated detail-region ID.
+
+Focused checks:
+
+- no swimmer details or family token are rendered while collapsed;
+- selecting a second family collapses the first;
+- selecting an expanded family collapses it; and
+- keyboard and touch activation work.
+
+#### 13A.4: family search
+
+Goal: find a known family without paging or scanning.
+
+Changes:
+
+- Add a labelled family search field separate from the existing roster search.
+- Match normalized family email, swimmer name, and group.
+- Never search or index family IDs or tokens.
+- Reset the family page and close an invisible expanded row when the query
+  changes.
+- Add result-count and no-results messages with a clear-search action.
+
+Focused checks:
+
+- matching is trimmed and case-insensitive;
+- email, swimmer, and group searches work;
+- tokens do not match; and
+- clearing restores the complete list.
+
+#### 13A.5: voting-progress filters
+
+Goal: support common management views without adding combined-filter
+complexity.
+
+Changes:
+
+- Add `All`, `No swimmers`, `Voting not started`, `Voting in progress`, and
+  `Voting complete` options.
+- Derive progress only from the nested swimmer vote state.
+- Compose the selected filter with search.
+- Reset the page and invalid expansion when the filter changes.
+
+Focused checks:
+
+- an empty family is never complete;
+- zero, partial, and all-voted families are classified correctly; and
+- filtering and search compose correctly.
+
+#### 13A.6: client-side pagination
+
+Goal: render a bounded number of family rows.
+
+Changes:
+
+- Sort filtered families by normalized email with an ID tie-breaker.
+- Add page sizes 10, 20, and 50 with 20 as the default.
+- Render only the selected page.
+- Add result range, Previous, Next, and numbered page controls.
+- Clamp the page after filtering, refresh, and deletion.
+
+Focused checks:
+
+- 40 families produce two default pages;
+- boundary controls disable correctly;
+- changing query, filter, or page size returns to page 1; and
+- deleting the last row on a page cannot leave an empty page selected.
+
+#### 13A.7: mutation context and focus
+
+Goal: prevent administrators from losing their place while managing a family.
+
+Changes:
+
+- Preserve valid search, filter, page, page size, and expanded-family state
+  across authoritative reloads.
+- Keep failed forms open with their entered values.
+- Return focus to the initiating or nearest surviving control after Cancel,
+  save, and delete.
+- Announce changed result counts and operation notices without stealing focus.
+
+Focused checks:
+
+- successful edit preserves visible context;
+- a renamed or deleted family that no longer matches is handled predictably;
+- failure and retry preserve context; and
+- keyboard focus remains useful after every mutation outcome.
+
+#### 13A.8: responsive styling and large-data acceptance
+
+Goal: finish and measure the user-facing redesign.
+
+Changes:
+
+- Style compact rows for desktop and wrapped cards for narrow screens.
+- Ensure controls meet touch-size and overflow requirements.
+- Load realistic 40- and 100-family preview fixtures without using production.
+- Record response size, response duration, usable-list time, and rendered row
+  count.
+- Run the complete release gate and authenticated preview acceptance.
+
+Focused checks:
+
+- desktop, mobile, keyboard, touch, and deliberate failure recovery pass;
+- no more than the selected page size is rendered;
+- existing Access, audit, validation, deletion, and caching protections remain
+  unchanged; and
+- measurements do not justify Phase 13B server pagination.
 
 ### Phase 13B: conditional server scaling
 
@@ -280,7 +452,7 @@ performance shows a real need:
 - [ ] Voting-progress and empty-family filters work.
 - [ ] Stable client-side pagination works at 10, 20, and 50 rows.
 - [ ] Family details are collapsed by default and only one is expanded.
-- [ ] Management editors appear only in response to an explicit action.
+- [x] Management editors appear only in response to an explicit action.
 - [ ] Mutations preserve valid search, filter, page, expansion, and focus state.
 - [ ] Desktop, mobile, keyboard, touch, and failure recovery tests pass.
 - [ ] Existing Access, audit, validation, safe-deletion, and no-store behavior is

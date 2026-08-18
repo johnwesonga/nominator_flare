@@ -211,6 +211,122 @@ pub fn admin_can_start_swimmer_management_test() {
   ) = updated
 }
 
+pub fn family_management_initializes_idle_test() {
+  let #(state, _effect) =
+    admin.update(
+      admin.LoadingDashboard("manager@example.com"),
+      admin.GotFamilies(Ok([])),
+    )
+
+  let assert admin.LoggedIn(
+    management: admin.ManagementForm(mode: admin.ManagementIdle, ..),
+    ..,
+  ) = state
+}
+
+pub fn add_family_opens_management_editor_test() {
+  let state =
+    admin.LoggedIn(
+      email: "manager@example.com",
+      roster: [],
+      results: [],
+      families: [],
+      management: admin.ManagementForm(admin.ManagementIdle, "", "", ""),
+      notice: option.None,
+      filter_text: "",
+      busy: False,
+    )
+  let #(updated, _effect) = admin.update(state, admin.StartNewFamily)
+
+  let assert admin.LoggedIn(
+    management: admin.ManagementForm(mode: admin.NewFamily, ..),
+    ..,
+  ) = updated
+}
+
+pub fn cancel_family_management_returns_to_idle_test() {
+  let state =
+    admin.LoggedIn(
+      email: "manager@example.com",
+      roster: [],
+      results: [],
+      families: [],
+      management: admin.ManagementForm(
+        admin.EditFamily("family-id"),
+        "parent@example.com",
+        "",
+        "",
+      ),
+      notice: option.None,
+      filter_text: "",
+      busy: False,
+    )
+  let #(updated, _effect) = admin.update(state, admin.CancelManagement)
+
+  let assert admin.LoggedIn(
+    management: admin.ManagementForm(mode: admin.ManagementIdle, ..),
+    ..,
+  ) = updated
+}
+
+pub fn successful_family_management_returns_to_idle_test() {
+  let state =
+    admin.LoggedIn(
+      email: "manager@example.com",
+      roster: [],
+      results: [],
+      families: [],
+      management: admin.ManagementForm(
+        admin.EditFamily("family-id"),
+        "parent@example.com",
+        "",
+        "",
+      ),
+      notice: option.None,
+      filter_text: "",
+      busy: True,
+    )
+  let #(updated, _effect) =
+    admin.update(state, admin.ManagementFinished(Ok(Nil)))
+
+  let assert admin.LoggedIn(
+    management: admin.ManagementForm(mode: admin.ManagementIdle, ..),
+    notice: option.Some("Family management changes saved."),
+    ..,
+  ) = updated
+}
+
+pub fn failed_family_management_keeps_editor_test() {
+  let state =
+    admin.LoggedIn(
+      email: "manager@example.com",
+      roster: [],
+      results: [],
+      families: [],
+      management: admin.ManagementForm(
+        admin.EditFamily("family-id"),
+        "parent@example.com",
+        "",
+        "",
+      ),
+      notice: option.None,
+      filter_text: "",
+      busy: True,
+    )
+  let #(updated, _effect) =
+    admin.update(state, admin.ManagementFinished(Error(rsvp.NetworkError)))
+
+  let assert admin.LoggedIn(
+    management: admin.ManagementForm(
+      mode: admin.EditFamily("family-id"),
+      email: "parent@example.com",
+      ..,
+    ),
+    busy: False,
+    ..,
+  ) = updated
+}
+
 pub fn invalid_ballot_link_becomes_visible_failure_test() {
   let #(state, _effect) =
     family.update(
