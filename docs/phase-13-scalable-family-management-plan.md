@@ -1,6 +1,6 @@
 # Phase 13: Scalable family-management UI plan
 
-Status: **13A.1 implemented; acceptance pending**
+Status: **13A.2 implemented; manual acceptance pending**
 
 Phase 12 is safe and functional, but its presentation is optimized for a small
 dataset. It renders every family as an expanded card, including every swimmer
@@ -292,8 +292,8 @@ Checkpoint status:
 - [x] Complete release gate passes: 22 Gleam tests, 54 Worker tests, frontend
   packaging, generated types, D1 and migration validation, and deployment dry
   run.
-- [ ] Manual browser acceptance confirms the editor is initially hidden and
-  opens and closes through every action.
+- [x] Manual browser acceptance confirmed on 2026-08-17 that the editor is
+  initially hidden and opens and closes through every action.
 
 #### 13A.2: family-list state and test fixtures
 
@@ -313,6 +313,23 @@ Focused checks:
 - default state is deterministic;
 - refresh and unrelated admin actions preserve list state; and
 - fixture families contain empty, partial-vote, and complete-vote cases.
+
+Checkpoint status:
+
+- [x] Dedicated family-list state added for query, filter, page, page size, and
+  expanded family ID.
+- [x] State initializes with an empty query, `All`, page 1, page size 20, and no
+  expanded family.
+- [x] Existing family cards remain unchanged during this checkpoint.
+- [x] Refresh, authoritative family reloads, and management actions preserve
+  family-list state.
+- [x] Deterministic automated fixtures cover 0, 1, 40, and 100 families.
+- [x] Fixtures include empty, partial-vote, and complete-vote families.
+- [x] Focused Gleam suite passes with 27 tests.
+- [x] Complete release gate passes: 27 Gleam tests, 54 Worker tests, frontend
+  packaging, generated types, TypeScript, D1 and migration validation, and the
+  deployment dry run.
+- [ ] Manual browser acceptance confirms there is no visible regression.
 
 #### 13A.3: collapsed family disclosures
 

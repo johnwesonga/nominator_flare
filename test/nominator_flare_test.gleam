@@ -1,7 +1,9 @@
 import admin
 import api
 import family
+import gleam/int
 import gleam/json
+import gleam/list
 import gleam/option
 import gleeunit
 import rsvp
@@ -9,6 +11,60 @@ import types
 
 pub fn main() -> Nil {
   gleeunit.main()
+}
+
+fn default_family_list() -> admin.FamilyListState {
+  admin.FamilyListState("", admin.AllFamilies, 1, 20, option.None)
+}
+
+fn family_fixtures(count: Int) -> List(types.AdminFamily) {
+  case count <= 0 {
+    True -> []
+    False -> family_fixtures_loop(1, count, []) |> list.reverse
+  }
+}
+
+fn family_fixtures_loop(
+  index: Int,
+  count: Int,
+  fixtures: List(types.AdminFamily),
+) -> List(types.AdminFamily) {
+  case index > count {
+    True -> fixtures
+    False ->
+      family_fixtures_loop(index + 1, count, [family_fixture(index), ..fixtures])
+  }
+}
+
+fn family_fixture(index: Int) -> types.AdminFamily {
+  let suffix = int.to_string(index)
+  let swimmers = case index {
+    1 -> []
+    2 -> [swimmer_fixture(suffix <> "-1", False)]
+    3 -> [
+      swimmer_fixture(suffix <> "-1", True),
+      swimmer_fixture(suffix <> "-2", False),
+    ]
+    _ -> [swimmer_fixture(suffix <> "-1", True)]
+  }
+
+  types.AdminFamily(
+    id: "family-" <> suffix,
+    email: "family-" <> suffix <> "@example.com",
+    family_token: "token-" <> suffix,
+    created_at: "2026-08-17T00:00:00.000Z",
+    swimmers:,
+  )
+}
+
+fn swimmer_fixture(suffix: String, has_voted: Bool) -> types.AdminSwimmer {
+  types.AdminSwimmer(
+    id: "swimmer-" <> suffix,
+    name: "Swimmer " <> suffix,
+    group_name: option.Some("Test group"),
+    created_at: "2026-08-17T00:00:00.000Z",
+    has_voted:,
+  )
 }
 
 // gleeunit test functions end in `_test`
@@ -86,6 +142,7 @@ pub fn completed_notification_campaign_updates_admin_notice_test() {
       results: [],
       families: [],
       management: admin.ManagementForm(admin.NewFamily, "", "", ""),
+      family_list: default_family_list(),
       notice: option.None,
       filter_text: "",
       busy: True,
@@ -194,6 +251,7 @@ pub fn admin_can_start_swimmer_management_test() {
       results: [],
       families: [],
       management: admin.ManagementForm(admin.NewFamily, "", "", ""),
+      family_list: default_family_list(),
       notice: option.None,
       filter_text: "",
       busy: False,
@@ -220,8 +278,149 @@ pub fn family_management_initializes_idle_test() {
 
   let assert admin.LoggedIn(
     management: admin.ManagementForm(mode: admin.ManagementIdle, ..),
+    family_list: admin.FamilyListState(
+      query: "",
+      filter: admin.AllFamilies,
+      page: 1,
+      page_size: 20,
+      expanded_family_id: option.None,
+    ),
     ..,
   ) = state
+}
+
+pub fn family_list_state_survives_refresh_test() {
+  let family_list =
+    admin.FamilyListState(
+      "ada",
+      admin.VotingInProgress,
+      2,
+      10,
+      option.Some("family-3"),
+    )
+  let state =
+    admin.LoggedIn(
+      email: "manager@example.com",
+      roster: [],
+      results: [],
+      families: family_fixtures(40),
+      management: admin.ManagementForm(admin.ManagementIdle, "", "", ""),
+      family_list:,
+      notice: option.Some("Previous notice"),
+      filter_text: "",
+      busy: False,
+    )
+
+  let #(updated, _effect) = admin.update(state, admin.Refresh)
+
+  let assert admin.LoggedIn(
+    family_list: updated_family_list,
+    notice: option.None,
+    busy: True,
+    ..,
+  ) = updated
+  assert updated_family_list == family_list
+}
+
+pub fn family_list_state_survives_family_reload_test() {
+  let family_list =
+    admin.FamilyListState(
+      "family-4",
+      admin.VotingComplete,
+      3,
+      10,
+      option.Some("family-4"),
+    )
+  let state =
+    admin.LoggedIn(
+      email: "manager@example.com",
+      roster: [],
+      results: [],
+      families: [],
+      management: admin.ManagementForm(admin.ManagementIdle, "", "", ""),
+      family_list:,
+      notice: option.None,
+      filter_text: "",
+      busy: True,
+    )
+
+  let #(updated, _effect) =
+    admin.update(state, admin.GotFamilies(Ok(family_fixtures(1))))
+
+  let assert admin.LoggedIn(
+    families: [types.AdminFamily(id: "family-1", ..)],
+    family_list: updated_family_list,
+    ..,
+  ) = updated
+  assert updated_family_list == family_list
+}
+
+pub fn family_list_state_survives_management_action_test() {
+  let family_list =
+    admin.FamilyListState(
+      "search",
+      admin.FamiliesWithoutSwimmers,
+      1,
+      20,
+      option.None,
+    )
+  let state =
+    admin.LoggedIn(
+      email: "manager@example.com",
+      roster: [],
+      results: [],
+      families: family_fixtures(1),
+      management: admin.ManagementForm(admin.ManagementIdle, "", "", ""),
+      family_list:,
+      notice: option.None,
+      filter_text: "",
+      busy: False,
+    )
+
+  let #(updated, _effect) = admin.update(state, admin.StartNewFamily)
+
+  let assert admin.LoggedIn(
+    management: admin.ManagementForm(mode: admin.NewFamily, ..),
+    family_list: updated_family_list,
+    ..,
+  ) = updated
+  assert updated_family_list == family_list
+}
+
+pub fn scalable_family_fixture_sizes_are_deterministic_test() {
+  assert family_fixtures(0) == []
+  assert list.length(family_fixtures(1)) == 1
+  assert list.length(family_fixtures(40)) == 40
+  assert list.length(family_fixtures(100)) == 100
+}
+
+pub fn scalable_family_fixtures_cover_voting_states_test() {
+  let assert [first, second, third, fourth] = family_fixtures(4)
+  let assert types.AdminFamily(_, _, _, _, []) = first
+  let assert types.AdminFamily(
+    _,
+    _,
+    _,
+    _,
+    [types.AdminSwimmer(_, _, _, _, False)],
+  ) = second
+  let assert types.AdminFamily(
+    _,
+    _,
+    _,
+    _,
+    [
+      types.AdminSwimmer(_, _, _, _, True),
+      types.AdminSwimmer(_, _, _, _, False),
+    ],
+  ) = third
+  let assert types.AdminFamily(
+    _,
+    _,
+    _,
+    _,
+    [types.AdminSwimmer(_, _, _, _, True)],
+  ) = fourth
 }
 
 pub fn add_family_opens_management_editor_test() {
@@ -232,6 +431,7 @@ pub fn add_family_opens_management_editor_test() {
       results: [],
       families: [],
       management: admin.ManagementForm(admin.ManagementIdle, "", "", ""),
+      family_list: default_family_list(),
       notice: option.None,
       filter_text: "",
       busy: False,
@@ -257,6 +457,7 @@ pub fn cancel_family_management_returns_to_idle_test() {
         "",
         "",
       ),
+      family_list: default_family_list(),
       notice: option.None,
       filter_text: "",
       busy: False,
@@ -282,6 +483,7 @@ pub fn successful_family_management_returns_to_idle_test() {
         "",
         "",
       ),
+      family_list: default_family_list(),
       notice: option.None,
       filter_text: "",
       busy: True,
@@ -309,6 +511,7 @@ pub fn failed_family_management_keeps_editor_test() {
         "",
         "",
       ),
+      family_list: default_family_list(),
       notice: option.None,
       filter_text: "",
       busy: True,
@@ -371,6 +574,7 @@ pub fn failed_campaign_poll_is_visible_test() {
       results: [],
       families: [],
       management: admin.ManagementForm(admin.NewFamily, "", "", ""),
+      family_list: default_family_list(),
       notice: option.None,
       filter_text: "",
       busy: True,

@@ -38,6 +38,24 @@ pub type ManagementForm {
   )
 }
 
+pub type FamilyFilter {
+  AllFamilies
+  FamiliesWithoutSwimmers
+  VotingNotStarted
+  VotingInProgress
+  VotingComplete
+}
+
+pub type FamilyListState {
+  FamilyListState(
+    query: String,
+    filter: FamilyFilter,
+    page: Int,
+    page_size: Int,
+    expanded_family_id: option.Option(String),
+  )
+}
+
 pub type State {
   Inactive
   LoadingSession
@@ -49,6 +67,7 @@ pub type State {
     results: List(ResultRow),
     families: List(AdminFamily),
     management: ManagementForm,
+    family_list: FamilyListState,
     notice: option.Option(String),
     filter_text: String,
     busy: Bool,
@@ -113,13 +132,24 @@ pub fn update(state: State, msg: Msg) -> #(State, effect.Effect(Msg)) {
     GotFamilies(result) -> got_families(state, result)
     FilterInput(text) ->
       case state {
-        LoggedIn(email, roster, results, families, management, notice, _, busy) -> #(
+        LoggedIn(
+          email,
+          roster,
+          results,
+          families,
+          management,
+          family_list,
+          notice,
+          _,
+          busy,
+        ) -> #(
           LoggedIn(
             email:,
             roster:,
             results:,
             families:,
             management:,
+            family_list:,
             notice:,
             filter_text: text,
             busy:,
@@ -136,6 +166,7 @@ pub fn update(state: State, msg: Msg) -> #(State, effect.Effect(Msg)) {
           results,
           families,
           management,
+          family_list,
           _,
           filter_text,
           _,
@@ -146,6 +177,7 @@ pub fn update(state: State, msg: Msg) -> #(State, effect.Effect(Msg)) {
             results:,
             families:,
             management:,
+            family_list:,
             notice: None,
             filter_text:,
             busy: True,
@@ -162,6 +194,7 @@ pub fn update(state: State, msg: Msg) -> #(State, effect.Effect(Msg)) {
           results,
           families,
           management,
+          family_list,
           _,
           filter_text,
           _,
@@ -172,6 +205,7 @@ pub fn update(state: State, msg: Msg) -> #(State, effect.Effect(Msg)) {
             results:,
             families:,
             management:,
+            family_list:,
             notice: None,
             filter_text:,
             busy: True,
@@ -193,6 +227,7 @@ pub fn update(state: State, msg: Msg) -> #(State, effect.Effect(Msg)) {
           results,
           families,
           management,
+          family_list,
           _,
           filter_text,
           _,
@@ -203,6 +238,7 @@ pub fn update(state: State, msg: Msg) -> #(State, effect.Effect(Msg)) {
             results:,
             families:,
             management:,
+            family_list:,
             notice: None,
             filter_text:,
             busy: True,
@@ -280,18 +316,33 @@ fn new_management() -> ManagementForm {
   ManagementForm(ManagementIdle, "", "", "")
 }
 
+fn new_family_list_state() -> FamilyListState {
+  FamilyListState("", AllFamilies, 1, 20, None)
+}
+
 fn set_management(
   state: State,
   management: ManagementForm,
 ) -> #(State, effect.Effect(Msg)) {
   case state {
-    LoggedIn(email, roster, results, families, _, notice, filter_text, busy) -> #(
+    LoggedIn(
+      email,
+      roster,
+      results,
+      families,
+      _,
+      family_list,
+      notice,
+      filter_text,
+      busy,
+    ) -> #(
       LoggedIn(
         email:,
         roster:,
         results:,
         families:,
         management:,
+        family_list:,
         notice:,
         filter_text:,
         busy:,
@@ -313,6 +364,7 @@ fn update_management(
       results,
       families,
       management,
+      family_list,
       notice,
       filter_text,
       busy,
@@ -323,6 +375,7 @@ fn update_management(
         results:,
         families:,
         management: update_form(management),
+        family_list:,
         notice:,
         filter_text:,
         busy:,
@@ -339,7 +392,17 @@ fn submit_management(state: State) -> #(State, effect.Effect(Msg)) {
       state,
       effect.none(),
     )
-    LoggedIn(email, roster, results, families, management, _, filter_text, _) -> {
+    LoggedIn(
+      email,
+      roster,
+      results,
+      families,
+      management,
+      family_list,
+      _,
+      filter_text,
+      _,
+    ) -> {
       let ManagementForm(mode, family_email, swimmer_name, group_name) =
         management
       let group = case string.trim(group_name) {
@@ -366,6 +429,7 @@ fn submit_management(state: State) -> #(State, effect.Effect(Msg)) {
           results:,
           families:,
           management:,
+          family_list:,
           notice: None,
           filter_text:,
           busy: True,
@@ -382,20 +446,43 @@ fn management_finished(
   result: Result(Nil, rsvp.Error(String)),
 ) -> #(State, effect.Effect(Msg)) {
   case state, result {
-    LoggedIn(email, roster, results, families, _, _, filter_text, _), Ok(_) -> #(
+    LoggedIn(
+      email,
+      roster,
+      results,
+      families,
+      _,
+      family_list,
+      _,
+      filter_text,
+      _,
+    ),
+      Ok(_)
+    -> #(
       LoggedIn(
         email:,
         roster:,
         results:,
         families:,
         management: new_management(),
+        family_list:,
         notice: Some("Family management changes saved."),
         filter_text:,
         busy: True,
       ),
       load_dashboard(),
     )
-    LoggedIn(email, roster, results, families, management, _, filter_text, _),
+    LoggedIn(
+      email,
+      roster,
+      results,
+      families,
+      management,
+      family_list,
+      _,
+      filter_text,
+      _,
+    ),
       Error(_)
     -> #(
       LoggedIn(
@@ -404,6 +491,7 @@ fn management_finished(
         results:,
         families:,
         management:,
+        family_list:,
         notice: Some(
           "The change could not be saved. Check for duplicate emails, swimmers, or existing votes.",
         ),
@@ -418,13 +506,24 @@ fn management_finished(
 
 fn set_notice(state: State, message: String) -> #(State, effect.Effect(Msg)) {
   case state {
-    LoggedIn(email, roster, results, families, management, _, filter_text, busy) -> #(
+    LoggedIn(
+      email,
+      roster,
+      results,
+      families,
+      management,
+      family_list,
+      _,
+      filter_text,
+      busy,
+    ) -> #(
       LoggedIn(
         email:,
         roster:,
         results:,
         families:,
         management:,
+        family_list:,
         notice: Some(message),
         filter_text:,
         busy:,
@@ -457,6 +556,7 @@ fn got_roster(
           results,
           families,
           management,
+          family_list,
           _,
           filter_text,
           _,
@@ -467,6 +567,7 @@ fn got_roster(
             results:,
             families:,
             management:,
+            family_list:,
             notice: Some("Refresh failed. Please try again."),
             filter_text:,
             busy: False,
@@ -484,6 +585,7 @@ fn got_roster(
             results: [],
             families: [],
             management: new_management(),
+            family_list: new_family_list_state(),
             notice: None,
             filter_text: "",
             busy: False,
@@ -496,6 +598,7 @@ fn got_roster(
           results,
           families,
           management,
+          family_list,
           notice,
           filter_text,
           _,
@@ -506,6 +609,7 @@ fn got_roster(
             results:,
             families:,
             management:,
+            family_list:,
             notice:,
             filter_text:,
             busy: False,
@@ -531,6 +635,7 @@ fn got_results(
           results,
           families,
           management,
+          family_list,
           _,
           filter_text,
           _,
@@ -541,6 +646,7 @@ fn got_results(
             results:,
             families:,
             management:,
+            family_list:,
             notice: Some("Refresh failed. Please try again."),
             filter_text:,
             busy: False,
@@ -558,19 +664,31 @@ fn got_results(
             results:,
             families: [],
             management: new_management(),
+            family_list: new_family_list_state(),
             notice: None,
             filter_text: "",
             busy: False,
           ),
           effect.none(),
         )
-        LoggedIn(email, roster, _, families, management, notice, filter_text, _) -> #(
+        LoggedIn(
+          email,
+          roster,
+          _,
+          families,
+          management,
+          family_list,
+          notice,
+          filter_text,
+          _,
+        ) -> #(
           LoggedIn(
             email:,
             roster:,
             results:,
             families:,
             management:,
+            family_list:,
             notice:,
             filter_text:,
             busy: False,
@@ -601,19 +719,31 @@ fn got_families(
             results: [],
             families:,
             management: new_management(),
+            family_list: new_family_list_state(),
             notice: None,
             filter_text: "",
             busy: False,
           ),
           effect.none(),
         )
-        LoggedIn(email, roster, results, _, management, notice, filter_text, _) -> #(
+        LoggedIn(
+          email,
+          roster,
+          results,
+          _,
+          management,
+          family_list,
+          notice,
+          filter_text,
+          _,
+        ) -> #(
           LoggedIn(
             email:,
             roster:,
             results:,
             families:,
             management:,
+            family_list:,
             notice:,
             filter_text:,
             busy: False,
@@ -631,7 +761,17 @@ fn finish_action(
   success: String,
 ) {
   case state {
-    LoggedIn(email, roster, results, families, management, _, filter_text, _) -> {
+    LoggedIn(
+      email,
+      roster,
+      results,
+      families,
+      management,
+      family_list,
+      _,
+      filter_text,
+      _,
+    ) -> {
       let notice = case result {
         Ok(_) -> success
         Error(_) -> "The action failed. Please try again."
@@ -643,6 +783,7 @@ fn finish_action(
           results:,
           families:,
           management:,
+          family_list:,
           notice: Some(notice),
           filter_text:,
           busy: False,
@@ -659,7 +800,17 @@ fn update_campaign(
   result: Result(api.NotificationCampaign, rsvp.Error(String)),
 ) -> #(State, effect.Effect(Msg)) {
   case state, result {
-    LoggedIn(email, roster, results, families, management, _, filter_text, _),
+    LoggedIn(
+      email,
+      roster,
+      results,
+      families,
+      management,
+      family_list,
+      _,
+      filter_text,
+      _,
+    ),
       Ok(campaign)
     -> {
       let notice = campaign_notice(campaign)
@@ -674,6 +825,7 @@ fn update_campaign(
           results:,
           families:,
           management:,
+          family_list:,
           notice: Some(notice),
           filter_text:,
           busy: False,
@@ -681,7 +833,17 @@ fn update_campaign(
         next,
       )
     }
-    LoggedIn(email, roster, results, families, management, _, filter_text, _),
+    LoggedIn(
+      email,
+      roster,
+      results,
+      families,
+      management,
+      family_list,
+      _,
+      filter_text,
+      _,
+    ),
       Error(_)
     -> #(
       LoggedIn(
@@ -690,6 +852,7 @@ fn update_campaign(
         results:,
         families:,
         management:,
+        family_list:,
         notice: Some("Notification progress could not be loaded."),
         filter_text:,
         busy: False,
@@ -731,6 +894,7 @@ pub fn view(state: State) -> element.Element(Msg) {
         results,
         families,
         management,
+        _,
         notice,
         filter_text,
         busy,
