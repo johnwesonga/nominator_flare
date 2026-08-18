@@ -193,6 +193,10 @@
       --lane-color: var(--pool-mid);
   }
 
+  .lane[data-lane="4"] {
+      --lane-color: var(--lane-green);
+  }
+
   .lane-number {
       position: absolute;
       left: 0;
