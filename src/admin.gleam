@@ -46,6 +46,17 @@ pub type FamilyFilter {
   VotingComplete
 }
 
+fn group_options() -> List(String) {
+  [
+    "Miniflyers",
+    "6 and under",
+    "7-8 years",
+    "9-10 years",
+    "11-12 years",
+    "13+ years",
+  ]
+}
+
 pub type FamilyListState {
   FamilyListState(
     query: String,
@@ -1236,12 +1247,46 @@ fn view_management_form(form: ManagementForm, busy: Bool) {
               ]),
               html.label([], [
                 html.text("Group (optional)"),
-                html.input([
-                  attribute.type_("text"),
-                  attribute.value(group_name),
-                  attribute.disabled(busy),
-                  event.on_input(ManagementGroupInput),
-                ]),
+                html.select(
+                  [
+                    attribute.disabled(busy),
+                    event.on_change(ManagementGroupInput),
+                  ],
+                  [
+                    html.option(
+                      [
+                        attribute.value(""),
+                        attribute.selected(group_name == ""),
+                      ],
+                      "No group",
+                    ),
+                    case
+                      group_name != ""
+                      && !list.any(group_options(), fn(group) {
+                        group == group_name
+                      })
+                    {
+                      True ->
+                        html.option(
+                          [
+                            attribute.value(group_name),
+                            attribute.selected(True),
+                          ],
+                          group_name,
+                        )
+                      False -> html.text("")
+                    },
+                    ..list.map(group_options(), fn(group) {
+                      html.option(
+                        [
+                          attribute.value(group),
+                          attribute.selected(group_name == group),
+                        ],
+                        group,
+                      )
+                    })
+                  ],
+                ),
               ]),
             ])
           ConfirmDeleteFamily(_, family_email) ->

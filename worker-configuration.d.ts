@@ -9,6 +9,7 @@ interface __BaseEnv_Env {
 	ACCESS_TEAM_DOMAIN: "https://nameless-sunset-3274.cloudflareaccess.com" | "https://replace-me.cloudflareaccess.com";
 	APPLICATION_ORIGIN: "https://preview.projozangu.com" | "https://nominator.projozangu.com" | "http://localhost:8787";
 	ENVIRONMENT: "preview" | "production" | "development";
+	DEV_AUTH_ENABLED: "false" | "true";
 	NOTIFICATION_CAMPAIGN_KEY: "2026-most-inspirational-preview-02" | "2026-most-inspirational-02" | "2026-most-inspirational";
 	SENDER_EMAIL: "notifications@projozangu.com";
 	SENDER_NAME: "Team Voting";

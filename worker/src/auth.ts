@@ -6,6 +6,11 @@ export type AdminIdentity = {
   subject: string | null;
 };
 
+type AdminEnv = Env & {
+  DEV_ADMIN_EMAIL?: string;
+  DEV_AUTH_ENABLED?: string;
+};
+
 export type AuthorizationResult =
   | { ok: true; identity: AdminIdentity }
   | { ok: false; response: Response };
@@ -14,6 +19,16 @@ export async function authorizeAdmin(
   request: Request,
   env: Env,
 ): Promise<AuthorizationResult> {
+  const localEnv = env as AdminEnv;
+  const devEmail = localEnv.DEV_ADMIN_EMAIL?.trim().toLowerCase();
+  if (
+    localEnv.DEV_AUTH_ENABLED === "true" &&
+    env.ENVIRONMENT === "development" &&
+    devEmail
+  ) {
+    return authorizeAllowlistedEmail(request, env, devEmail, null);
+  }
+
   const token = request.headers.get("cf-access-jwt-assertion");
   if (token === null || token === "") {
     return unauthorized(request);
@@ -56,6 +71,15 @@ export async function authorizeAdmin(
     return unauthorized(request);
   }
 
+  return authorizeAllowlistedEmail(request, env, email, subject);
+}
+
+async function authorizeAllowlistedEmail(
+  request: Request,
+  env: Env,
+  email: string,
+  subject: string | null,
+): Promise<AuthorizationResult> {
   const allowed = await env.DB
     .prepare("SELECT 1 AS present FROM admins WHERE email = ?1 LIMIT 1")
     .bind(email)

@@ -34,6 +34,14 @@ type FamilyInput = { email: string };
 type SwimmerInput = { name: string; groupName: string | null };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const SWIMMER_GROUPS = new Set([
+  "Miniflyers",
+  "6 and under",
+  "7-8 years",
+  "9-10 years",
+  "11-12 years",
+  "13+ years",
+]);
 
 export async function handleFamilyManagementRoute(
   request: Request,
@@ -308,8 +316,8 @@ async function swimmerInput(request: Request): Promise<
     : typeof rawGroup === "string"
       ? rawGroup.trim() || null
       : undefined;
-  if (name.length === 0 || name.length > 120 || groupName === undefined || (groupName?.length ?? 0) > 80) {
-    return invalidBody(request, "name must be 1-120 characters and group_name at most 80 characters.");
+  if (name.length === 0 || name.length > 120 || groupName === undefined || (groupName !== null && !SWIMMER_GROUPS.has(groupName))) {
+    return invalidBody(request, "name must be 1-120 characters and group_name must be a predefined group or null.");
   }
   return { ok: true, value: { name, groupName } };
 }

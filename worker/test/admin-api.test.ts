@@ -165,6 +165,29 @@ describe("Cloudflare Access authorization", () => {
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     await expect(response.json()).resolves.toEqual({ email: MANAGER_EMAIL });
   });
+
+  it("allows the explicit development identity only when enabled and allowlisted", async () => {
+    const developmentEnv = Object.assign({}, env, {
+      DEV_AUTH_ENABLED: "true",
+      DEV_ADMIN_EMAIL: ` ${MANAGER_EMAIL.toUpperCase()} `,
+    }) as Env;
+    const response = await routeRequest(
+      new Request("http://localhost/api/admin/session"),
+      developmentEnv,
+    );
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ email: MANAGER_EMAIL });
+
+    const missingAdminEnv = Object.assign({}, env, {
+      DEV_AUTH_ENABLED: "true",
+      DEV_ADMIN_EMAIL: "other@example.com",
+    }) as Env;
+    const forbidden = await routeRequest(
+      new Request("http://localhost/api/admin/session"),
+      missingAdminEnv,
+    );
+    expect(forbidden.status).toBe(403);
+  });
 });
 
 describe("admin API", () => {
@@ -258,10 +281,10 @@ describe("admin API", () => {
     expect(invalid.status).toBe(400);
   });
 
-  it("adds and updates a swimmer with normalized optional group data", async () => {
+  it("adds and updates a swimmer with predefined optional group data", async () => {
     const token = await accessToken();
     const created = await adminRequest(`/api/admin/families/${FAMILY_ID}/swimmers`, {
-      body: { name: "  Gamma Swimmer ", group_name: "  Dolphins " },
+      body: { name: "  Gamma Swimmer ", group_name: "  7-8 years " },
       method: "POST",
       token,
     });
@@ -269,7 +292,14 @@ describe("admin API", () => {
     const swimmer = await created.json<{ id: string }>();
     await expect(
       env.DB.prepare("SELECT name, group_name FROM swimmers WHERE id = ?1").bind(swimmer.id).first(),
-    ).resolves.toEqual({ name: "Gamma Swimmer", group_name: "Dolphins" });
+    ).resolves.toEqual({ name: "Gamma Swimmer", group_name: "7-8 years" });
+
+    const invalid = await adminRequest(`/api/admin/swimmers/${swimmer.id}`, {
+      body: { name: "Gamma Updated", group_name: "Dolphins" },
+      method: "PUT",
+      token,
+    });
+    expect(invalid.status).toBe(400);
 
     const updated = await adminRequest(`/api/admin/swimmers/${swimmer.id}`, {
       body: { name: "Gamma Updated", group_name: "" },

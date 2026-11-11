@@ -372,7 +372,75 @@ Checkpoint status:
 - [ ] Manual browser acceptance confirms keyboard and touch operation, the
   one-expanded-family rule, and existing management actions.
 
-#### 13A.4: family search
+#### 13A.4: targeted family invitation
+
+Goal: allow an administrator to send or intentionally resend a voting
+invitation to one newly added or selected family without emailing every family
+again.
+
+Recommended design:
+
+- Add `POST /api/admin/families/:familyId/notifications` behind the existing
+  Cloudflare Access authorization and optional D1 admin allowlist.
+- Accept a client-generated UUID request ID and use it as an idempotency key so
+  transport retries cannot create duplicate sends.
+- Create a one-delivery notification campaign without adding it to the
+  seasonal `NOTIFICATION_CAMPAIGN_KEY` mapping. The existing team-wide campaign
+  remains immutable.
+- Reuse the Queue consumer, email templates, delivery tracking, retry policy,
+  Resend integration, and campaign-progress endpoint.
+- Return `202 Accepted` with the existing notification-campaign JSON shape.
+- Reject an unknown family with `404`, an invalid request ID with `400`, and a
+  concurrent active campaign with the existing safe `409` response.
+- Never accept an email address or family token from the client; resolve the
+  family and current voting link from D1 when the Queue message is processed.
+
+Frontend changes:
+
+- Add `Send invitation` inside the expanded family details.
+- Require an explicit confirmation that names the family email before sending.
+- Label a subsequent intentional action `Resend invitation`; a new request ID
+  represents a deliberate resend, while retrying the same request retains the
+  original ID.
+- Disable the action while its request is being created and show the existing
+  queued, sent, and failed progress notice.
+- Preserve the expanded family and current management-list context throughout
+  success, failure, polling, and retry.
+
+Options considered:
+
+| Option | Advantages | Disadvantages | Decision |
+|---|---|---|---|
+| Change `NOTIFICATION_CAMPAIGN_KEY` | Uses the current team-wide path unchanged | Emails every existing family again and creates unnecessary duplicates | Reject |
+| Add a new family to the completed seasonal campaign | Appears to keep one campaign per season | Mutates a completed audit record and complicates totals and terminal state | Reject |
+| Create a targeted one-family campaign | Reuses Queue delivery, retries, status, and audit behavior while keeping bulk history immutable | Adds a small API route and explicit request-id contract | **Recommended** |
+| Send synchronously from the Worker request | Minimal database work | Loses Queue retries, progress, and failure isolation | Reject |
+
+Focused checks:
+
+- only the selected family receives a delivery record and Queue message;
+- the team-wide seasonal campaign and its counts remain unchanged;
+- repeating the same request ID returns the same campaign without another
+  message;
+- a new confirmed request ID creates an intentional resend;
+- unknown families, invalid IDs, denied admins, and active-campaign conflicts
+  fail safely;
+- tokens, email content, and recipient addresses remain absent from logs; and
+- the expanded-row action works with keyboard and touch and reports progress
+  and failures clearly.
+
+Checkpoint status:
+
+- [x] Behavior, API contract, idempotency boundary, alternatives, and focused
+  acceptance checks documented.
+- [ ] Worker route and targeted campaign creation implemented.
+- [ ] Gleam action, confirmation, request-ID generation, and progress handling
+  implemented.
+- [ ] Automated tests and complete release gate pass.
+- [ ] Authenticated preview acceptance confirms first-send, deliberate resend,
+  duplicate-request protection, failure reporting, keyboard, and touch flows.
+
+#### 13A.5: family search
 
 Goal: find a known family without paging or scanning.
 
@@ -392,7 +460,7 @@ Focused checks:
 - tokens do not match; and
 - clearing restores the complete list.
 
-#### 13A.5: voting-progress filters
+#### 13A.6: voting-progress filters
 
 Goal: support common management views without adding combined-filter
 complexity.
@@ -411,7 +479,7 @@ Focused checks:
 - zero, partial, and all-voted families are classified correctly; and
 - filtering and search compose correctly.
 
-#### 13A.6: client-side pagination
+#### 13A.7: client-side pagination
 
 Goal: render a bounded number of family rows.
 
@@ -430,7 +498,7 @@ Focused checks:
 - changing query, filter, or page size returns to page 1; and
 - deleting the last row on a page cannot leave an empty page selected.
 
-#### 13A.7: mutation context and focus
+#### 13A.8: mutation context and focus
 
 Goal: prevent administrators from losing their place while managing a family.
 
@@ -450,7 +518,7 @@ Focused checks:
 - failure and retry preserve context; and
 - keyboard focus remains useful after every mutation outcome.
 
-#### 13A.8: responsive styling and large-data acceptance
+#### 13A.9: responsive styling and large-data acceptance
 
 Goal: finish and measure the user-facing redesign.
 
@@ -489,6 +557,8 @@ performance shows a real need:
 - [ ] Voting-progress and empty-family filters work.
 - [ ] Stable client-side pagination works at 10, 20, and 50 rows.
 - [ ] Family details are collapsed by default and only one is expanded.
+- [ ] A selected family can receive an idempotent first invitation or explicit
+  resend without modifying or repeating the team-wide campaign.
 - [x] Management editors appear only in response to an explicit action.
 - [ ] Mutations preserve valid search, filter, page, expansion, and focus state.
 - [ ] Desktop, mobile, keyboard, touch, and failure recovery tests pass.

@@ -48,6 +48,26 @@ npm install
 npm run db:migrate:local
 ```
 
+To use the admin UI locally without Cloudflare Access, start Wrangler with these
+local-only variables (choose an email with a row in the local D1 `admins`
+table):
+
+```sh
+WRANGLER_WRITE_LOGS=false npx wrangler dev \
+  --var DEV_AUTH_ENABLED:true \
+  --var DEV_ADMIN_EMAIL:you@example.com
+```
+
+Then open `/admin`. The bypass is opt-in and only active when the Worker
+environment is `development`; the D1 allowlist still applies. Do not add these
+flags to deployment commands. To add an email to the local allowlist, insert it
+into local D1, for example:
+
+```sh
+WRANGLER_WRITE_LOGS=false npx wrangler d1 execute nominator-development \
+  --local --command "INSERT OR IGNORE INTO admins (email, created_at) VALUES ('you@example.com', datetime('now'))"
+```
+
 Optionally load the deterministic local fixture:
 
 ```sh
