@@ -457,6 +457,32 @@
       font-size: 13px;
   }
 
+  .voting-status {
+      display: inline-flex;
+      align-items: center;
+      margin: 0 0 12px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .03em;
+  }
+
+  .voting-open {
+      color: #176448;
+      background: #E7F5F0;
+  }
+
+  .voting-closed {
+      color: #8B2D25;
+      background: #FCEAE8;
+  }
+
+  .voting-unknown {
+      color: var(--ink-soft);
+      background: #E9F3F6;
+  }
+
   .family-management-head,
   .family-card-head,
   .family-actions,

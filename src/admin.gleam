@@ -64,6 +64,7 @@ pub type FamilyListState {
     page: Int,
     page_size: Int,
     expanded_family_id: option.Option(String),
+    voting_open: option.Option(Bool),
   )
 }
 
@@ -71,7 +72,7 @@ pub type State {
   Inactive
   LoadingSession
   SessionFailed
-  LoadingDashboard(email: String)
+  LoadingDashboard(email: String, voting_open: option.Option(Bool))
   LoggedIn(
     email: String,
     roster: List(AdminRow),
@@ -92,6 +93,7 @@ pub type Msg {
   GotRoster(Result(List(AdminRow), rsvp.Error(String)))
   GotResults(Result(List(ResultRow), rsvp.Error(String)))
   GotFamilies(Result(List(AdminFamily), rsvp.Error(String)))
+  GotVotingStatus(Result(Bool, rsvp.Error(String)))
   FilterInput(String)
   Refresh
   SetVoting(Bool)
@@ -129,7 +131,7 @@ pub fn update(state: State, msg: Msg) -> #(State, effect.Effect(Msg)) {
     SessionLoaded(result) ->
       case result {
         Ok(api.AdminSession(email)) -> #(
-          LoadingDashboard(email),
+          LoadingDashboard(email, None),
           load_dashboard(),
         )
         Error(_) -> #(SessionFailed, effect.none())
@@ -142,6 +144,7 @@ pub fn update(state: State, msg: Msg) -> #(State, effect.Effect(Msg)) {
     GotRoster(result) -> got_roster(state, result)
     GotResults(result) -> got_results(state, result)
     GotFamilies(result) -> got_families(state, result)
+    GotVotingStatus(result) -> got_voting_status(state, result)
     FilterInput(text) ->
       case state {
         LoggedIn(
@@ -227,10 +230,21 @@ pub fn update(state: State, msg: Msg) -> #(State, effect.Effect(Msg)) {
         _ -> #(state, effect.none())
       }
     VotingUpdated(open, result) ->
-      finish_action(state, result, case open {
-        True -> "Voting is open."
-        False -> "Voting is closed."
-      })
+      case result {
+        Ok(_) -> {
+          let #(updated_state, _) =
+            finish_action(state, result, case open {
+              True -> "Voting is open."
+              False -> "Voting is closed."
+            })
+          set_voting_status(updated_state, open)
+        }
+        Error(_) ->
+          finish_action(state, result, case open {
+            True -> "Voting is open."
+            False -> "Voting is closed."
+          })
+      }
     NotifyParents ->
       case state {
         LoggedIn(
@@ -330,7 +344,7 @@ fn new_management() -> ManagementForm {
 }
 
 fn new_family_list_state() -> FamilyListState {
-  FamilyListState("", AllFamilies, 1, 20, None)
+  FamilyListState("", AllFamilies, 1, 20, None, None)
 }
 
 fn toggle_family(
@@ -344,7 +358,14 @@ fn toggle_family(
       results,
       families,
       management,
-      FamilyListState(query, filter, page, page_size, expanded_family_id),
+      FamilyListState(
+        query,
+        filter,
+        page,
+        page_size,
+        expanded_family_id,
+        voting_open,
+      ),
       notice,
       filter_text,
       busy,
@@ -366,6 +387,7 @@ fn toggle_family(
             page:,
             page_size:,
             expanded_family_id: next_expanded_family_id,
+            voting_open:,
           ),
           notice:,
           filter_text:,
@@ -613,7 +635,35 @@ fn load_dashboard() -> effect.Effect(Msg) {
     api.get_admin_roster(GotRoster),
     api.get_results(GotResults),
     api.get_admin_families(GotFamilies),
+    api.get_voting_status(GotVotingStatus),
   ])
+}
+
+fn got_voting_status(
+  state: State,
+  response: Result(Bool, rsvp.Error(String)),
+) -> #(State, effect.Effect(Msg)) {
+  case response, state {
+    Ok(open), LoadingDashboard(email, _) -> #(
+      LoadingDashboard(email, Some(open)),
+      effect.none(),
+    )
+    Ok(open), LoggedIn(..) -> set_voting_status(state, open)
+    _, _ -> #(state, effect.none())
+  }
+}
+
+fn set_voting_status(state: State, open: Bool) -> #(State, effect.Effect(Msg)) {
+  case state {
+    LoggedIn(family_list: family_list, ..) -> #(
+      LoggedIn(
+        ..state,
+        family_list: FamilyListState(..family_list, voting_open: Some(open)),
+      ),
+      effect.none(),
+    )
+    _ -> #(state, effect.none())
+  }
 }
 
 fn got_roster(
@@ -623,7 +673,7 @@ fn got_roster(
   case response {
     Error(_) ->
       case state {
-        LoadingDashboard(_) -> #(SessionFailed, effect.none())
+        LoadingDashboard(_, _) -> #(SessionFailed, effect.none())
         LoggedIn(
           email,
           roster,
@@ -652,14 +702,17 @@ fn got_roster(
       }
     Ok(loaded_roster) ->
       case state {
-        LoadingDashboard(email) -> #(
+        LoadingDashboard(email, voting_open) -> #(
           LoggedIn(
             email:,
             roster: loaded_roster,
             results: [],
             families: [],
             management: new_management(),
-            family_list: new_family_list_state(),
+            family_list: FamilyListState(
+              ..new_family_list_state(),
+              voting_open:,
+            ),
             notice: None,
             filter_text: "",
             busy: False,
@@ -702,7 +755,7 @@ fn got_results(
   case response {
     Error(_) ->
       case state {
-        LoadingDashboard(_) -> #(SessionFailed, effect.none())
+        LoadingDashboard(_, _) -> #(SessionFailed, effect.none())
         LoggedIn(
           email,
           roster,
@@ -731,14 +784,17 @@ fn got_results(
       }
     Ok(results) ->
       case state {
-        LoadingDashboard(email) -> #(
+        LoadingDashboard(email, voting_open) -> #(
           LoggedIn(
             email:,
             roster: [],
             results:,
             families: [],
             management: new_management(),
-            family_list: new_family_list_state(),
+            family_list: FamilyListState(
+              ..new_family_list_state(),
+              voting_open:,
+            ),
             notice: None,
             filter_text: "",
             busy: False,
@@ -781,19 +837,22 @@ fn got_families(
   case response {
     Error(_) ->
       case state {
-        LoadingDashboard(_) -> #(SessionFailed, effect.none())
+        LoadingDashboard(_, _) -> #(SessionFailed, effect.none())
         _ -> set_notice(state, "Family management could not be refreshed.")
       }
     Ok(families) ->
       case state {
-        LoadingDashboard(email) -> #(
+        LoadingDashboard(email, voting_open) -> #(
           LoggedIn(
             email:,
             roster: [],
             results: [],
             families:,
             management: new_management(),
-            family_list: new_family_list_state(),
+            family_list: FamilyListState(
+              ..new_family_list_state(),
+              voting_open:,
+            ),
             notice: None,
             filter_text: "",
             busy: False,
@@ -961,7 +1020,7 @@ pub fn view(state: State) -> element.Element(Msg) {
       Inactive -> html.text("")
       LoadingSession -> html.p([], [html.text("Checking admin access...")])
       SessionFailed -> view_session_failed()
-      LoadingDashboard(_) -> html.p([], [html.text("Loading dashboard...")])
+      LoadingDashboard(_, _) -> html.p([], [html.text("Loading dashboard...")])
       LoggedIn(
         email,
         roster,
@@ -1014,6 +1073,7 @@ fn view_dashboard(
   filter_text: String,
   busy: Bool,
 ) {
+  let FamilyListState(voting_open: voting_open, ..) = family_list
   let filtered =
     list.filter(roster, fn(row) {
       let query = string.lowercase(filter_text)
@@ -1044,11 +1104,28 @@ fn view_dashboard(
         ],
       ),
     ]),
+    html.p(
+      [
+        attribute.class(case voting_open {
+          Some(True) -> "voting-status voting-open"
+          Some(False) -> "voting-status voting-closed"
+          None -> "voting-status voting-unknown"
+        }),
+        attribute.role("status"),
+      ],
+      [
+        html.text(case voting_open {
+          Some(True) -> "Voting is currently OPEN"
+          Some(False) -> "Voting is currently CLOSED"
+          None -> "Loading voting status..."
+        }),
+      ],
+    ),
     html.div([attribute.class("controls")], [
       html.button(
         [
           attribute.class("btn btn-primary"),
-          attribute.disabled(busy),
+          attribute.disabled(busy || voting_open != Some(False)),
           event.on_click(SetVoting(True)),
         ],
         [html.text("Open voting")],
@@ -1056,7 +1133,7 @@ fn view_dashboard(
       html.button(
         [
           attribute.class("btn btn-ghost"),
-          attribute.disabled(busy),
+          attribute.disabled(busy || voting_open != Some(True)),
           event.on_click(SetVoting(False)),
         ],
         [html.text("Close voting")],

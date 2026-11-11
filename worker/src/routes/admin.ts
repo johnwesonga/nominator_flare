@@ -35,10 +35,19 @@ export async function handleAdminRoute(
     case "/api/admin/results":
       return results(env.DB);
     case "/api/admin/voting":
+      if (request.method === "GET") return votingStatus(env.DB);
       return updateVoting(request, env.DB, identity);
     default:
       throw new Error("Router dispatched an unknown admin route.");
   }
+}
+
+async function votingStatus(database: D1Database): Promise<Response> {
+  const row = await database
+    .prepare("SELECT is_open FROM voting_settings WHERE id = 1")
+    .first<{ is_open: number }>();
+  if (row === null) throw new Error("Voting settings singleton is missing.");
+  return jsonResponse({ open: row.is_open === 1 });
 }
 
 async function roster(database: D1Database): Promise<Response> {

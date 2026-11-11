@@ -15,7 +15,7 @@ pub fn main() -> Nil {
 }
 
 fn default_family_list() -> admin.FamilyListState {
-  admin.FamilyListState("", admin.AllFamilies, 1, 20, option.None)
+  admin.FamilyListState("", admin.AllFamilies, 1, 20, option.None, option.None)
 }
 
 fn family_fixtures(count: Int) -> List(types.AdminFamily) {
@@ -105,7 +105,7 @@ pub fn access_session_starts_dashboard_loading_test() {
       admin.SessionLoaded(Ok(api.AdminSession("manager@example.com"))),
     )
 
-  let assert admin.LoadingDashboard("manager@example.com") = state
+  let assert admin.LoadingDashboard("manager@example.com", option.None) = state
 }
 
 pub fn failed_access_session_is_visible_test() {
@@ -273,7 +273,7 @@ pub fn admin_can_start_swimmer_management_test() {
 pub fn family_management_initializes_idle_test() {
   let #(state, _effect) =
     admin.update(
-      admin.LoadingDashboard("manager@example.com"),
+      admin.LoadingDashboard("manager@example.com", option.None),
       admin.GotFamilies(Ok([])),
     )
 
@@ -285,6 +285,7 @@ pub fn family_management_initializes_idle_test() {
       page: 1,
       page_size: 20,
       expanded_family_id: option.None,
+      voting_open: option.None,
     ),
     ..,
   ) = state
@@ -298,6 +299,7 @@ pub fn family_list_state_survives_refresh_test() {
       2,
       10,
       option.Some("family-3"),
+      option.Some(True),
     )
   let state =
     admin.LoggedIn(
@@ -331,6 +333,7 @@ pub fn family_list_state_survives_family_reload_test() {
       3,
       10,
       option.Some("family-4"),
+      option.Some(False),
     )
   let state =
     admin.LoggedIn(
@@ -375,6 +378,7 @@ pub fn family_reload_collapses_a_missing_expanded_family_test() {
         1,
         20,
         option.Some("family-2"),
+        option.None,
       ),
       notice: option.None,
       filter_text: "",
@@ -398,6 +402,7 @@ pub fn family_list_state_survives_management_action_test() {
       1,
       20,
       option.None,
+      option.Some(True),
     )
   let state =
     admin.LoggedIn(
@@ -534,6 +539,7 @@ pub fn expanded_family_renders_accessible_details_test() {
         1,
         20,
         option.Some("family-2"),
+        option.None,
       ),
       notice: option.None,
       filter_text: "",
