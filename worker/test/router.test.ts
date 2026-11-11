@@ -34,6 +34,7 @@ describe("API router", () => {
     ["GET", "/api/admin/roster"],
     ["GET", "/api/admin/results"],
     ["PUT", "/api/admin/voting"],
+    ["GET", "/api/admin/voting/status"],
     ["GET", "/api/admin/families"],
     ["POST", "/api/admin/families"],
     ["PUT", "/api/admin/families/00000000-0000-4000-8000-000000000001"],

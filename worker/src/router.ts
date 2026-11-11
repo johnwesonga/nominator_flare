@@ -32,7 +32,7 @@ const routes: Route[] = [
   { method: "GET", pattern: /^\/api\/admin\/roster$/, handler: handleAdminRoute },
   { method: "GET", pattern: /^\/api\/admin\/results$/, handler: handleAdminRoute },
   { method: "PUT", pattern: /^\/api\/admin\/voting$/, handler: handleAdminRoute },
-  { method: "GET", pattern: /^\/api\/admin\/voting$/, handler: handleAdminRoute },
+  { method: "GET", pattern: /^\/api\/admin\/voting\/status$/, handler: handleAdminRoute },
   { method: "GET", pattern: /^\/api\/admin\/families$/, handler: handleFamilyManagementRoute },
   { method: "POST", pattern: /^\/api\/admin\/families$/, handler: handleFamilyManagementRoute },
   { method: "PUT", pattern: /^\/api\/admin\/families\/[^/]+$/, handler: handleFamilyManagementRoute },

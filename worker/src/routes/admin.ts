@@ -34,8 +34,9 @@ export async function handleAdminRoute(
       return roster(env.DB);
     case "/api/admin/results":
       return results(env.DB);
+    case "/api/admin/voting/status":
+      return votingStatus(env.DB);
     case "/api/admin/voting":
-      if (request.method === "GET") return votingStatus(env.DB);
       return updateVoting(request, env.DB, identity);
     default:
       throw new Error("Router dispatched an unknown admin route.");

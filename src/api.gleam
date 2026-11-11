@@ -249,7 +249,11 @@ pub fn results_decoder() -> decode.Decoder(List(ResultRow)) {
 pub fn get_voting_status(
   message: fn(Result(Bool, rsvp.Error(String))) -> msg,
 ) -> effect.Effect(msg) {
-  http_client.get_json("/api/admin/voting", voting_status_decoder(), message)
+  http_client.get_json(
+    "/api/admin/voting/status",
+    voting_status_decoder(),
+    message,
+  )
 }
 
 fn voting_status_decoder() -> decode.Decoder(Bool) {
